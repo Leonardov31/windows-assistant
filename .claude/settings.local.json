@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(dotnet publish:*)",
+      "Bash(ls -d publish* publish-*/)",
+      "Bash(ls -d publish*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(taskkill /F /IM WindowsAssistant.exe)",
+      "Bash(./dist/WindowsAssistant.exe)",
+      "Bash(dotnet run:*)",
+      "Bash(taskkill //F //IM WindowsAssistant.exe)",
+      "Bash(git checkout:*)"
+    ]
+  }
+}
