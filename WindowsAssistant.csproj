@@ -9,6 +9,20 @@
     <RootNamespace>WindowsAssistant</RootNamespace>
     <AssemblyName>WindowsAssistant</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Memory tuning: this is a tray app, not a server -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <RetainVMGarbageCollection>false</RetainVMGarbageCollection>
+
+    <!-- Strip framework features we don't use to shrink working set -->
+    <DebuggerSupport>false</DebuggerSupport>
+    <EventSourceSupport>false</EventSourceSupport>
+    <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <MetricsSupport>false</MetricsSupport>
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+    <EnableUnsafeUTF7Encoding>false</EnableUnsafeUTF7Encoding>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,7 +35,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Speech" Version="8.0.0" />
+    <PackageReference Include="Vosk" Version="0.3.38" />
+    <PackageReference Include="NAudio" Version="2.3.0" />
   </ItemGroup>
 
 </Project>
