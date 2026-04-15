@@ -19,7 +19,6 @@ public class OrdinalCommandTests
     private static readonly Regex OrdinalBrightness = OrdinalCommandHandler.OrdinalBrightnessPattern;
     private static readonly Regex OrdinalPower = OrdinalCommandHandler.OrdinalPowerPattern;
     private static readonly Regex AllBrightness = OrdinalCommandHandler.AllBrightnessPattern;
-    private static readonly Regex AllPower = OrdinalCommandHandler.AllPowerPattern;
 
     // =========================================================================
     // ORDINAL → INDEX MAPPING
@@ -105,24 +104,6 @@ public class OrdinalCommandTests
     }
 
     // =========================================================================
-    // ALL/BOTH + POWER
-    // =========================================================================
-
-    [Theory]
-    [InlineData("hey windows both off", "both", "off")]
-    [InlineData("hey windows both on", "both", "on")]
-    [InlineData("hey windows all off", "all", "off")]
-    [InlineData("ei windows ambos desligar", "ambos", "desligar")]
-    [InlineData("ei windows todos ligar", "todos", "ligar")]
-    public void AllPower_MatchesCorrectly(string text, string expectedAll, string expectedAction)
-    {
-        var match = AllPower.Match(text);
-        Assert.True(match.Success);
-        Assert.Equal(expectedAll, match.Groups[1].Value, StringComparer.OrdinalIgnoreCase);
-        Assert.Equal(expectedAction, match.Groups[2].Value, StringComparer.OrdinalIgnoreCase);
-    }
-
-    // =========================================================================
     // POWER ACTION MAPPING
     // =========================================================================
 
@@ -188,7 +169,6 @@ public class OrdinalCommandTests
         Assert.False(OrdinalBrightness.IsMatch(text));
         Assert.False(OrdinalPower.IsMatch(text));
         Assert.False(AllBrightness.IsMatch(text));
-        Assert.False(AllPower.IsMatch(text));
     }
 
     // =========================================================================

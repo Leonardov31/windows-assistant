@@ -13,10 +13,9 @@ namespace WindowsAssistant.Commands;
 ///   "first 50" / "primeiro 50"  → monitor 1 at 50%
 ///   "both 5"   / "ambos 5"      → all monitors at 50%
 ///
-/// Power:
+/// Power (single monitor only):
 ///   "first off"  / "primeiro desligar"  → monitor 1 standby
 ///   "second on"  / "segundo ligar"      → monitor 2 on
-///   "both off"   / "ambos desligar"     → all monitors standby
 /// </summary>
 public sealed class OrdinalCommandHandler : ICommandHandler
 {
@@ -48,11 +47,6 @@ public sealed class OrdinalCommandHandler : ICommandHandler
         $@"\b{AllGroup}\s+(\d+)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // All + power: "both off", "todos ligar"
-    internal static readonly Regex AllPowerPattern = new(
-        $@"\b{AllGroup}\s+{PowerGroup}\b",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
     private readonly MonitorControlService _monitorService;
 
     public OrdinalCommandHandler(MonitorControlService monitorService)
@@ -68,7 +62,7 @@ public sealed class OrdinalCommandHandler : ICommandHandler
             "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
             "20", "30", "40", "50", "60", "70", "80", "90", "100");
 
-        GrammarBuilder ordinalBrightness, ordinalPower, allBrightness, allPower;
+        GrammarBuilder ordinalBrightness, ordinalPower, allBrightness;
 
         if (culture.Name == "pt-BR")
         {
@@ -87,10 +81,6 @@ public sealed class OrdinalCommandHandler : ICommandHandler
             allBrightness = new GrammarBuilder();
             allBrightness.Append(allWords);
             allBrightness.Append(values);
-
-            allPower = new GrammarBuilder();
-            allPower.Append(allWords);
-            allPower.Append(power);
         }
         else
         {
@@ -109,13 +99,9 @@ public sealed class OrdinalCommandHandler : ICommandHandler
             allBrightness = new GrammarBuilder();
             allBrightness.Append(allWords);
             allBrightness.Append(values);
-
-            allPower = new GrammarBuilder();
-            allPower.Append(allWords);
-            allPower.Append(power);
         }
 
-        return new Choices(ordinalBrightness, ordinalPower, allBrightness, allPower);
+        return new Choices(ordinalBrightness, ordinalPower, allBrightness);
     }
 
     public CommandResult? TryHandle(RecognitionResult result)
@@ -131,21 +117,6 @@ public sealed class OrdinalCommandHandler : ICommandHandler
             return ok
                 ? new CommandResult(true, $"Monitor {powerIdx + 1} → {state}")
                 : new CommandResult(false, $"Could not set monitor {powerIdx + 1} to {state}.");
-        }
-
-        // All + power: "both off"
-        match = AllPowerPattern.Match(result.Text);
-        if (match.Success)
-        {
-            bool turnOn = IsPowerOn(match.Groups[2].Value);
-            if (turnOn) _monitorService.RefreshMonitors();
-            bool ok = _monitorService.SetAllMonitorsPower(turnOn);
-            string state = turnOn ? "on" : "standby";
-            return ok
-                ? new CommandResult(true, $"All monitors → {state}")
-                : new CommandResult(false, _monitorService.Count == 0
-                    ? "No DDC/CI monitors detected."
-                    : $"Could not set all monitors to {state}.");
         }
 
         // Ordinal + brightness: "first 20"

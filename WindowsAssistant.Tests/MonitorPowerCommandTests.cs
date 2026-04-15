@@ -8,7 +8,7 @@ namespace WindowsAssistant.Tests;
 /// <summary>
 /// Tests for <see cref="MonitorPowerCommandHandler"/>:
 ///   - Action regex matching (turn on/off, enable/disable, ligar/desligar)
-///   - Target regex matching (specific monitor vs all)
+///   - Target regex matching (specific monitor only)
 ///   - Monitor index parsing (1-based → 0-based)
 ///   - Grammar building per culture
 ///   - Handler metadata
@@ -72,36 +72,30 @@ public class MonitorPowerCommandTests
     // -------------------------------------------------------------------------
 
     [Theory]
-    [InlineData("turn off monitor 1", true, 1)]
-    [InlineData("turn on monitor 2", true, 2)]
-    [InlineData("disable monitor 4", true, 4)]
-    [InlineData("desligar monitor 3", true, 3)]
-    public void TargetPattern_SpecificMonitor_CapturesIndex(string text, bool isSpecific, int expectedMonitor)
+    [InlineData("turn off monitor 1", 1)]
+    [InlineData("turn on monitor 2", 2)]
+    [InlineData("disable monitor 4", 4)]
+    [InlineData("desligar monitor 3", 3)]
+    public void TargetPattern_SpecificMonitor_CapturesIndex(string text, int expectedMonitor)
     {
         var match = TargetPattern.Match(text);
 
         Assert.True(match.Success);
-        Assert.Equal(isSpecific, match.Groups[1].Success);
         Assert.Equal(expectedMonitor, int.Parse(match.Groups[1].Value));
     }
 
     // -------------------------------------------------------------------------
-    // Target matching — all monitors
+    // Target does not match "all monitors" (removed feature)
     // -------------------------------------------------------------------------
 
     [Theory]
     [InlineData("turn off all monitors")]
     [InlineData("turn off monitor")]
-    [InlineData("turn on monitors")]
-    [InlineData("desligar todos monitor")]
-    [InlineData("desligar todos os monitors")]
     [InlineData("desligar todos os monitores")]
-    public void TargetPattern_AllMonitors_NoIndexCaptured(string text)
+    public void TargetPattern_AllMonitors_DoesNotMatch(string text)
     {
         var match = TargetPattern.Match(text);
-
-        Assert.True(match.Success);
-        Assert.False(match.Groups[1].Success);
+        Assert.False(match.Success);
     }
 
     // -------------------------------------------------------------------------
@@ -194,14 +188,11 @@ public class MonitorPowerCommandTests
     // -------------------------------------------------------------------------
 
     [Theory]
-    [InlineData("hey windows turn off monitor 1", false, true, 1)]
-    [InlineData("hey windows turn on monitor 2", true, true, 2)]
-    [InlineData("hey windows turn off all monitors", false, false, -1)]
-    [InlineData("hey windows turn on monitor", true, false, -1)]
-    [InlineData("ei windows desligar monitor 1", false, true, 1)]
-    [InlineData("ei windows ligar monitor 2", true, true, 2)]
-    [InlineData("ei windows desligar todos os monitores", false, false, -1)]
-    public void FullCommand_ParsesActionAndTarget(string text, bool expectedOn, bool expectedSpecific, int expectedMonitor)
+    [InlineData("hey windows turn off monitor 1", false, 1)]
+    [InlineData("hey windows turn on monitor 2", true, 2)]
+    [InlineData("ei windows desligar monitor 1", false, 1)]
+    [InlineData("ei windows ligar monitor 2", true, 2)]
+    public void FullCommand_ParsesActionAndTarget(string text, bool expectedOn, int expectedMonitor)
     {
         var actionMatch = ActionPattern.Match(text);
         Assert.True(actionMatch.Success);
@@ -212,9 +203,6 @@ public class MonitorPowerCommandTests
 
         var targetMatch = TargetPattern.Match(text);
         Assert.True(targetMatch.Success);
-        Assert.Equal(expectedSpecific, targetMatch.Groups[1].Success);
-
-        if (expectedSpecific)
-            Assert.Equal(expectedMonitor, int.Parse(targetMatch.Groups[1].Value));
+        Assert.Equal(expectedMonitor, int.Parse(targetMatch.Groups[1].Value));
     }
 }

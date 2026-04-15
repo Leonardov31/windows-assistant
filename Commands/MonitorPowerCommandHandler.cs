@@ -6,20 +6,17 @@ using WindowsAssistant.Services;
 namespace WindowsAssistant.Commands;
 
 /// <summary>
-/// Handles voice commands that turn monitors on/off via DDC/CI DPMS (VCP 0xD6).
+/// Handles voice commands that turn a specific monitor on/off via DDC/CI DPMS (VCP 0xD6).
 ///
 /// English (en-US):
-///   "turn off monitor 1"    — standby monitor 1
-///   "turn on monitor 2"     — wake monitor 2
-///   "disable monitor 1"     — standby monitor 1
-///   "enable monitor 2"      — wake monitor 2
-///   "turn off monitor"      — standby all monitors
-///   "turn off all monitors" — standby all monitors
+///   "turn off monitor 1"  — standby monitor 1
+///   "turn on monitor 2"   — wake monitor 2
+///   "disable monitor 1"   — standby monitor 1
+///   "enable monitor 2"    — wake monitor 2
 ///
 /// Portuguese (pt-BR):
-///   "desligar monitor 1"       — standby monitor 1
-///   "ligar monitor 2"          — wake monitor 2
-///   "desligar todos os monitores" — standby all monitors
+///   "desligar monitor 1"  — standby monitor 1
+///   "ligar monitor 2"     — wake monitor 2
 /// </summary>
 public sealed class MonitorPowerCommandHandler : ICommandHandler
 {
@@ -31,7 +28,7 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     internal static readonly Regex TargetPattern = new(
-        @"\bmonitor\s+(\d+)\b|\b(?:(?:all\s+)?(?:monitors?|monitores)|todos?\s+(?:os\s+)?(?:monitors?|monitores))\b",
+        @"\bmonitor\s+(\d+)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly MonitorControlService _monitorService;
@@ -51,17 +48,14 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
         if (culture.Name == "pt-BR")
         {
             builder.Append(new Choices("ligar", "desligar"));
-            builder.Append("todos", 0, 1);
-            builder.Append("os", 0, 1);
-            builder.Append(new Choices("monitor", "monitores"));
-            builder.Append(monitors, 0, 1);
+            builder.Append("monitor");
+            builder.Append(monitors);
         }
         else
         {
             builder.Append(new Choices("turn off", "turn on", "enable", "disable"));
-            builder.Append("all", 0, 1);
             builder.Append("monitor");
-            builder.Append(monitors, 0, 1);
+            builder.Append(monitors);
         }
 
         return builder;
@@ -80,37 +74,16 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
         string action = actionMatch.Groups[1].Value.ToLowerInvariant();
         bool turnOn = action is "turn on" or "enable" or "ligar";
 
-        // If group 1 captured a digit → specific monitor; otherwise → all
-        bool isSpecific = targetMatch.Groups[1].Success;
+        int monitorIndex = int.Parse(targetMatch.Groups[1].Value) - 1;
 
-        if (isSpecific)
-        {
-            int monitorIndex = int.Parse(targetMatch.Groups[1].Value) - 1;
+        if (turnOn)
+            _monitorService.RefreshMonitors();
 
-            if (turnOn)
-                _monitorService.RefreshMonitors();
+        bool ok = _monitorService.SetMonitorPower(monitorIndex, turnOn);
+        string state = turnOn ? "on" : "standby";
 
-            bool ok = _monitorService.SetMonitorPower(monitorIndex, turnOn);
-            string state = turnOn ? "on" : "standby";
-
-            return ok
-                ? new CommandResult(true, $"Monitor {monitorIndex + 1} → {state}")
-                : new CommandResult(false, $"Could not set monitor {monitorIndex + 1} to {state}. Check DDC/CI support.");
-        }
-        else
-        {
-            if (turnOn)
-                _monitorService.RefreshMonitors();
-
-            bool ok = _monitorService.SetAllMonitorsPower(turnOn);
-            string state = turnOn ? "on" : "standby";
-            int count = _monitorService.Count;
-
-            return ok
-                ? new CommandResult(true, $"All {count} monitor(s) → {state}")
-                : new CommandResult(false, count == 0
-                    ? "No DDC/CI monitors detected."
-                    : $"Could not set all monitors to {state}. Some may not support DDC/CI.");
-        }
+        return ok
+            ? new CommandResult(true, $"Monitor {monitorIndex + 1} → {state}")
+            : new CommandResult(false, $"Could not set monitor {monitorIndex + 1} to {state}. Check DDC/CI support.");
     }
 }

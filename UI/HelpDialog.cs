@@ -36,8 +36,7 @@ internal sealed class HelpDialog : Form
             "Hey Windows, first off"     → monitor 1 standby
             "Hey Windows, second on"     → monitor 2 on
             "Ei Windows, primeiro desligar" → standby
-            "Hey Windows, both off"      → all standby
-            "Ei Windows, todos ligar"    → all on
+            "Ei Windows, segundo ligar"  → monitor 2 on
 
         Ordinals: first/primeiro, second/segundo,
         third/terceiro, fourth/quarto.
@@ -63,12 +62,10 @@ internal sealed class HelpDialog : Form
             "Hey Windows, turn on monitor 2"
             "Hey Windows, disable monitor 1"
             "Hey Windows, enable monitor 2"
-            "Hey Windows, turn off all monitors"
 
           Português:
             "Ei Windows, desligar monitor 1"
             "Ei Windows, ligar monitor 2"
-            "Ei Windows, desligar todos os monitores"
 
         Note: to wake a monitor by voice, your
         microphone must not be on the sleeping monitor.

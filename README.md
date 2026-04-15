@@ -26,9 +26,9 @@ The fastest way to control your monitors. Values 1–10 are levels (×10), 0 or 
 | "Ei Windows, primeiro 5" | Monitor 1 → 50% |
 | "Hey Windows, both 80" | All → 80% |
 | "Hey Windows, first off" | Monitor 1 → standby |
-| "Hey Windows, both on" | All → on |
+| "Hey Windows, second on" | Monitor 2 → on |
 | "Ei Windows, primeiro desligar" | Monitor 1 → standby |
-| "Ei Windows, todos ligar" | All → on |
+| "Ei Windows, segundo ligar" | Monitor 2 → on |
 
 Ordinals: first/primeiro, second/segundo, third/terceiro, fourth/quarto.
 All monitors: both/all, ambos/todos.
@@ -49,7 +49,7 @@ All monitors: both/all, ambos/todos.
 | "Hey Windows, turn off monitor 1" | Monitor 1 → standby |
 | "Hey Windows, turn on monitor 2" | Monitor 2 → on |
 | "Hey Windows, disable monitor 1" | Monitor 1 → standby |
-| "Hey Windows, turn off all monitors" | All → standby |
+| "Hey Windows, enable monitor 2" | Monitor 2 → on |
 | "Ei Windows, desligar monitor 1" | Monitor 1 → standby |
 | "Ei Windows, ligar monitor 2" | Monitor 2 → on |
 
