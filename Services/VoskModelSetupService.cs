@@ -63,32 +63,33 @@ public static class VoskModelSetupService
         if (choice != DialogResult.Yes)
             return false;
 
-        bool allSucceeded = true;
+        var failures = new List<string>();
         foreach (var model in missing)
         {
-            if (!TryDownloadAndExtract(model))
-                allSucceeded = false;
+            var error = TryDownloadAndExtract(model);
+            if (error is not null)
+                failures.Add($"{model.Culture}: {error}");
         }
 
-        if (allSucceeded)
+        if (failures.Count == 0)
         {
             MessageBox.Show(
                 "Speech models installed successfully.",
                 "Windows Assistant",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
-        }
-        else
-        {
-            MessageBox.Show(
-                "Some models could not be downloaded. Check your internet connection\n" +
-                "and restart the app to try again.",
-                "Windows Assistant",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning);
+            return true;
         }
 
-        return allSucceeded;
+        MessageBox.Show(
+            "Some models could not be downloaded:\n\n" +
+            string.Join("\n", failures) + "\n\n" +
+            $"See: {Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WindowsAssistant", "voice.log")}\n" +
+            "Restart the app to try again.",
+            "Windows Assistant",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
+        return false;
     }
 
     /// <summary>
@@ -102,7 +103,13 @@ public static class VoskModelSetupService
             && Directory.Exists(Path.Combine(modelPath, "conf"));
     }
 
-    private static bool TryDownloadAndExtract(ModelInfo model)
+    /// <summary>
+    /// Downloads the model ZIP and extracts it. Runs the entire async I/O on a
+    /// worker thread to avoid the classic WinForms sync-over-async deadlock
+    /// (HttpClient continuations trying to marshal back to a blocked UI thread).
+    /// Returns <c>null</c> on success, or a short error message on failure.
+    /// </summary>
+    private static string? TryDownloadAndExtract(ModelInfo model)
     {
         var cultureDir = Path.Combine(ModelsRoot, model.Culture);
         Directory.CreateDirectory(cultureDir);
@@ -111,26 +118,36 @@ public static class VoskModelSetupService
 
         try
         {
-            using var http = new HttpClient();
-            http.Timeout = TimeSpan.FromMinutes(10);
-
-            using (var response = http.GetAsync(model.ZipUrl, HttpCompletionOption.ResponseHeadersRead).GetAwaiter().GetResult())
+            Task.Run(async () =>
             {
+                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(15) };
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("WindowsAssistant/1.0");
+
+                using var response = await http.GetAsync(model.ZipUrl, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                using var source = response.Content.ReadAsStreamAsync().GetAwaiter().GetResult();
-                using var dest = File.Create(zipPath);
-                source.CopyTo(dest);
-            }
+
+                await using var source = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                await using var dest   = File.Create(zipPath);
+                await source.CopyToAsync(dest).ConfigureAwait(false);
+            }).GetAwaiter().GetResult();
 
             ZipFile.ExtractToDirectory(zipPath, cultureDir, overwriteFiles: true);
             File.Delete(zipPath);
 
-            return IsValidVoskModel(Path.Combine(cultureDir, model.FolderName));
+            if (!IsValidVoskModel(Path.Combine(cultureDir, model.FolderName)))
+                return "extracted archive is missing required subfolders";
+
+            return null;
+        }
+        catch (AggregateException ex) when (ex.InnerException is not null)
+        {
+            LogError($"Failed to install Vosk model for {model.Culture}: {ex.InnerException.Message}");
+            return ex.InnerException.Message;
         }
         catch (Exception ex)
         {
-            LogError($"Failed to download Vosk model for {model.Culture}: {ex.Message}");
-            return false;
+            LogError($"Failed to install Vosk model for {model.Culture}: {ex.Message}");
+            return ex.Message;
         }
     }
 
