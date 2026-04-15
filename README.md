@@ -17,30 +17,30 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 
 ### Brightness
 
-| Example | Effect |
-|---|---|
-| "Hey Windows, first 5" | Monitor 1 → 50% |
-| "Hey Windows, monitor 1 50" | Monitor 1 → 50% |
-| "Hey Windows, both 3" | All → 30% |
-| "Ei Windows, primeiro 8" | Monitor 1 → 80% |
-| "Ei Windows, ambos 5" | All → 50% |
+| Example                                  | Effect          |
+| ---------------------------------------- | --------------- |
+| "Hey Windows, first 5"                   | Monitor 1 → 50% |
+| "Hey Windows, monitor 1 50"              | Monitor 1 → 50% |
+| "Hey Windows, both 3"                    | All → 30%       |
+| "Ei Windows, primeiro 8"                 | Monitor 1 → 80% |
+| "Ei Windows, ambos 5"                    | All → 50%       |
 | "Hey Windows, brightness 5 on monitor 1" | Monitor 1 → 50% |
-| "Ei Windows, brilho 3 no monitor 1" | Monitor 1 → 30% |
-| "Hey Windows, monitor 1 brightness 5" | Monitor 1 → 50% |
-| "Ei Windows, primeiro brilho 3" | Monitor 1 → 30% |
+| "Ei Windows, brilho 3 no monitor 1"      | Monitor 1 → 30% |
+| "Hey Windows, monitor 1 brightness 5"    | Monitor 1 → 50% |
+| "Ei Windows, primeiro brilho 3"          | Monitor 1 → 30% |
 
 Values 0–10 are levels (×10). Values 11–100 are direct percentages.
 
 ### Monitor Power
 
-| Example | Effect |
-|---|---|
+| Example                           | Effect              |
+| --------------------------------- | ------------------- |
 | "Hey Windows, turn off monitor 1" | Monitor 1 → standby |
-| "Hey Windows, first off" | Monitor 1 → standby |
-| "Hey Windows, enable second" | Monitor 2 → on |
-| "Ei Windows, desligar monitor 1" | Monitor 1 → standby |
-| "Ei Windows, primeiro desativar" | Monitor 1 → standby |
-| "Ei Windows, ligar segundo" | Monitor 2 → on |
+| "Hey Windows, first off"          | Monitor 1 → standby |
+| "Hey Windows, enable second"      | Monitor 2 → on      |
+| "Ei Windows, desligar monitor 1"  | Monitor 1 → standby |
+| "Ei Windows, primeiro desativar"  | Monitor 1 → standby |
+| "Ei Windows, ligar segundo"       | Monitor 2 → on      |
 
 Monitors: monitor 1–4, or ordinals (first/primeiro, second/segundo, third/terceiro, fourth/quarto).
 
@@ -70,3 +70,9 @@ dotnet publish WindowsAssistant.csproj -c Release -r win-x64 --self-contained tr
 2. A blue "W" icon appears in the system tray
 3. Right-click for options (Help, Monitors, Speech speed, Startup, Exit)
 4. Speak commands using the wake phrase + command
+
+## Futuras Features e Fixes
+
+- **Alternativas à API do Windows de Text To Speech:** Explorar e implementar outras opções de reconhecimento de voz mais precisas ou flexíveis.
+- **Melhorar o reconhecimento em Português:** Ajustar gramáticas, sensibilidade ou modelos para que comandos em português sejam reconhecidos com maior taxa de sucesso.
+- **Melhorar as funcionalidades de ligar/desligar os monitores:** Aprimorar o controle de energia, suportando mais modelos de monitores e lidando melhor com cenários como múltiplos monitores e despertar (resume) do standby.
