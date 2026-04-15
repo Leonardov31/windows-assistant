@@ -19,10 +19,10 @@ public sealed class VoiceListenerService : IDisposable
 {
     /// <summary>
     /// Recognitions with a raw confidence below this threshold are dropped.
-    /// 0.65 matches the value used during the Vosk era; tune in voice.log if
+    /// 0.5 matches the value used during the Vosk era; tune in voice.log if
     /// the Windows engine behaves differently for a given language.
     /// </summary>
-    private const float MinConfidence = 0.65f;
+    private const float MinConfidence = 0.5f;
 
     /// <summary>Cultures known to the app, in preferred load order.</summary>
     public static readonly IReadOnlyList<string> KnownCultures = new[] { "pt-BR", "en-US" };
@@ -150,6 +150,15 @@ public sealed class VoiceListenerService : IDisposable
             recognizer.Constraints.Add(new SpeechRecognitionTopicConstraint(
                 SpeechRecognitionScenario.Dictation, "command"));
 
+            // Defaults for continuous dictation are surprisingly aggressive
+            // (~5 s initial silence, ~2 s end silence). In a tray app that may
+            // sit idle for minutes before the user speaks, the short initial
+            // timeout causes the session to Complete with UserCanceled before
+            // a single word arrives. Push all three out.
+            recognizer.Timeouts.InitialSilenceTimeout = TimeSpan.FromHours(1);
+            recognizer.Timeouts.BabbleTimeout         = TimeSpan.FromHours(1);
+            recognizer.Timeouts.EndSilenceTimeout     = TimeSpan.FromSeconds(1.2);
+
             var compilation = await recognizer.CompileConstraintsAsync();
             if (compilation.Status != SpeechRecognitionResultStatus.Success)
             {
@@ -163,6 +172,15 @@ public sealed class VoiceListenerService : IDisposable
                 (_, e) => HandleResult(culture, e.Result);
             recognizer.ContinuousRecognitionSession.Completed +=
                 (s, e) => OnSessionCompleted(culture, e);
+
+            // Diagnostic: stream partial hypotheses to the terminal so the
+            // user can see the recognizer is actually listening. Never
+            // written to voice.log — it's high-frequency noise.
+            recognizer.HypothesisGenerated += (_, e) =>
+                LogAlways($"[{DateTime.Now:HH:mm:ss}] … \"{e.Hypothesis.Text}\"");
+
+            recognizer.StateChanged += (_, e) =>
+                LogAlways($"[{DateTime.Now:HH:mm:ss}] State: {e.State}");
 
             await recognizer.ContinuousRecognitionSession.StartAsync();
 
@@ -207,19 +225,14 @@ public sealed class VoiceListenerService : IDisposable
     {
         if (_disposed || !_running) return;
 
-        // TimeoutExceeded and AudioQualityFailure are recoverable — just restart.
-        // Other statuses (e.g. user cancelled) leave the engine stopped.
-        switch (e.Status)
-        {
-            case SpeechRecognitionResultStatus.TimeoutExceeded:
-            case SpeechRecognitionResultStatus.AudioQualityFailure:
-                EngineStatus?.Invoke(this, $"Session completed ({e.Status}) — restarting.");
-                _ = RestartSessionAfterDelayAsync(culture);
-                break;
-            default:
-                EngineStatus?.Invoke(this, $"Session completed ({e.Status}).");
-                break;
-        }
+        // Dictation sessions on unpackaged desktop apps periodically complete
+        // on their own — the OS cycles the underlying pipeline. UserCanceled
+        // is what Windows reports in that case even though nobody called
+        // CancelAsync. Just restart. Success/TimeoutExceeded/AudioQuality
+        // should all resume too. The only status we don't auto-restart on is
+        // Unknown, where something is fundamentally broken.
+        EngineStatus?.Invoke(this, $"Session completed ({e.Status}) — restarting.");
+        _ = RestartSessionAfterDelayAsync(culture);
     }
 
     private async Task RestartSessionAfterDelayAsync(CultureInfo culture)
@@ -227,15 +240,25 @@ public sealed class VoiceListenerService : IDisposable
         await Task.Delay(500);
         if (_disposed || !_running) return;
 
-        RecognizerEntry? entry;
-        lock (_recognizersLock) entry = _engine;
-        if (entry is null || entry.Culture.Name != culture.Name) return;
-
-        try { await entry.Recognizer.ContinuousRecognitionSession.StartAsync(); }
-        catch (Exception ex)
+        // Reusing the existing SpeechRecognizer after Completed is unreliable:
+        // StartAsync will often transition the state to Capturing, but the
+        // underlying pipeline stays dead and no results ever arrive. Tear the
+        // whole recognizer down and build a fresh one instead.
+        RecognizerEntry? old;
+        lock (_recognizersLock)
         {
-            EngineStatus?.Invoke(this, $"Restart failed for {culture.Name}: {ex.Message}");
+            old = _engine;
+            if (old is not null && old.Culture.Name != culture.Name)
+            {
+                // User switched culture since this restart was queued — bail.
+                return;
+            }
+            _engine = null;
         }
+        old?.Dispose();
+
+        if (_disposed || !_running) return;
+        await LoadActiveEngineAsync();
     }
 
     // -------------------------------------------------------------------------

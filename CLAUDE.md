@@ -27,7 +27,7 @@ Windows-only system tray app (.NET 10 / WinForms) that listens for voice command
 
 ### Voice recognition
 
-`VoiceListenerService` uses the built-in `Windows.Media.SpeechRecognition` API (WinRT / OneCore). One `SpeechRecognizer` is active at a time — the one for `AppSettings.ActiveCulture`. Recognition runs via a `ContinuousRecognitionSession` configured with a `SpeechRecognitionTopicConstraint(Dictation, "command")`, so any utterance gets transcribed; the service then enforces the wake-phrase prefix + `MinConfidence = 0.65f` threshold in code.
+`VoiceListenerService` uses the built-in `Windows.Media.SpeechRecognition` API (WinRT / OneCore). One `SpeechRecognizer` is active at a time — the one for `AppSettings.ActiveCulture`. Recognition runs via a `ContinuousRecognitionSession` configured with a `SpeechRecognitionTopicConstraint(Dictation, "command")`, so any utterance gets transcribed; the service then enforces the wake-phrase prefix + `MinConfidence = 0.5f` threshold in code.
 
 The wake phrase is user-defined (`AppSettings.WakePhrase`, default `computador`) and dictation grammar does not need to be rebuilt when it changes. Switching languages disposes the current recognizer and constructs a new one via `SetActiveCulture(name)`.
 
@@ -40,6 +40,7 @@ The OS owns audio capture — no NAudio, no manual mic enumeration. `SpeechRecog
 ### Service wiring
 
 `TrayApplication` (in `UI/`) owns the lifecycle. Its constructor:
+
 1. Loads `AppSettings` from `%LOCALAPPDATA%/WindowsAssistant/settings.json`.
 2. Creates `MonitorControlService` — enumerates physical monitors, exposes DDC/CI brightness get/set via P/Invoke to `dxva2.dll`.
 3. Builds a list of `ICommandHandler` implementations (`BrightnessCommandHandler`, `MonitorPowerCommandHandler`) — both use `CommandVocabulary` for shared parsing.
@@ -65,4 +66,4 @@ The OS owns audio capture — no NAudio, no manual mic enumeration. `SpeechRecog
 - Monitor power uses VCP code 0xD6 via `SetVCPFeature` (1 = on, 4 = standby).
 - Crash logs are written to `%LOCALAPPDATA%/WindowsAssistant/crash.log`.
 - Voice logging is split: **every** transcription (including dropped ones) streams to the terminal (Console + Trace); only wake-phrase-matched utterances are appended to `%LOCALAPPDATA%/WindowsAssistant/voice.log`.
-- Minimum confidence threshold is the fixed `VoiceListenerService.MinConfidence = 0.65f` (the `SpeechRecognitionResult.RawConfidence` float).
+- Minimum confidence threshold is the fixed `VoiceListenerService.MinConfidence = 0.5f` (the `SpeechRecognitionResult.RawConfidence` float).
