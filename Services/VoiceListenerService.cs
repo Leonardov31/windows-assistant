@@ -33,11 +33,11 @@ public sealed class VoiceListenerService : IDisposable
         ["pt-BR"] = ["ei computador", "oi computador", "olá computador", "ola computador"],
     };
 
-    // Cultures that should actually be loaded right now. Keeping en-US off
-    // until the pt-BR path is well-tuned; flip the flag when ready.
+    // Cultures that should actually be loaded at runtime.
     private static readonly HashSet<string> EnabledCultures = new(StringComparer.OrdinalIgnoreCase)
     {
         "pt-BR",
+        "en-US",
     };
 
     private sealed class RecognizerEntry : IDisposable

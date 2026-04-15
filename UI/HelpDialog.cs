@@ -15,11 +15,12 @@ internal sealed class HelpDialog : Form
         ===================================
 
         WAKE PHRASES
-          English:    "Hey Windows" (disabled in this build)
+          English:    "Hey Windows" / "Hey Computer"
           Português:  "Ei Computador" / "Oi Computador" / "Olá Computador"
 
         Tip: números devem ser falados por extenso
           ex: "Ei Computador, brilho cinquenta no primeiro"
+          ex: "Hey Windows, brightness fifty on first"
 
 
         BRIGHTNESS CONTROL
