@@ -46,8 +46,7 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
     private List<ICommandHandler> BuildHandlers() =>
     [
         new BrightnessCommandHandler(_monitorService),
-        // new VolumeCommandHandler(),   // example of a future handler
-        // new AppLauncherHandler(),
+        new MonitorPowerCommandHandler(_monitorService),
     ];
 
     // -------------------------------------------------------------------------

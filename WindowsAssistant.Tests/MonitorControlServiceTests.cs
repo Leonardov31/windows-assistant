@@ -91,5 +91,26 @@ public class MonitorControlServiceTests : IDisposable
         Assert.False(_service.SetBrightness(0, 150));
     }
 
+    // -------------------------------------------------------------------------
+    // Monitor power — invalid index and empty list
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void SetMonitorPower_InvalidIndex_ReturnsFalse(int index)
+    {
+        Assert.False(_service.SetMonitorPower(index, true));
+        Assert.False(_service.SetMonitorPower(index, false));
+    }
+
+    [Fact]
+    public void SetAllMonitorsPower_NoMonitors_ReturnsFalse()
+    {
+        Assert.False(_service.SetAllMonitorsPower(true));
+        Assert.False(_service.SetAllMonitorsPower(false));
+    }
+
     public void Dispose() => _service.Dispose();
 }

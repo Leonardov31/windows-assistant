@@ -81,6 +81,11 @@ public class HelpDialogTests : IDisposable
     [InlineData("DDC/CI")]
     [InlineData("Language Setup")]
     [InlineData("administrator")]
+    [InlineData("MONITOR POWER")]
+    [InlineData("turn off")]
+    [InlineData("turn on")]
+    [InlineData("desligar")]
+    [InlineData("ligar")]
     public void HelpContent_ContainsExpectedSection(string keyword)
     {
         var textBox = (TextBox)_dialog.Controls[0];

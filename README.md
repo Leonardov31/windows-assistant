@@ -5,6 +5,7 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 ## Features
 
 - **Voice-controlled brightness** — say "Hey Windows, brightness 3 in monitor 1" to set 30% brightness
+- **Monitor power control** — turn monitors on/off (DPMS standby) by voice
 - **Bilingual** — supports English and Portuguese commands simultaneously
 - **Auto speech speed detection** — adapts to slow, normal, or fast speaking pace
 - **DDC/CI** — works with any external monitor that supports the DDC/CI protocol
@@ -24,6 +25,19 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 | Português | "Ei Windows, brilho 8 do monitor 2" | Monitor 2 → 80% |
 
 Scale: 1–10 maps to 10%–100%.
+
+### Monitor Power
+
+| Language | Example | Effect |
+|---|---|---|
+| English | "Hey Windows, turn off monitor 1" | Monitor 1 → standby |
+| English | "Hey Windows, turn on monitor 2" | Monitor 2 → on |
+| English | "Hey Windows, disable monitor 1" | Monitor 1 → standby |
+| English | "Hey Windows, turn off all monitors" | All → standby |
+| Português | "Ei Windows, desligar monitor 1" | Monitor 1 → standby |
+| Português | "Ei Windows, ligar monitor 2" | Monitor 2 → on |
+
+Omit the monitor number to target all monitors.
 
 ## Requirements
 

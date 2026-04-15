@@ -59,4 +59,23 @@ internal static class NativeMethods
 
     [DllImport("dxva2.dll", SetLastError = true)]
     internal static extern bool DestroyPhysicalMonitor(IntPtr hPhysicalMonitor);
+
+    [DllImport("dxva2.dll", SetLastError = true)]
+    internal static extern bool SetVCPFeature(
+        IntPtr hPhysicalMonitor,
+        byte bVCPCode,
+        uint dwNewValue);
+
+    [DllImport("dxva2.dll", SetLastError = true)]
+    internal static extern bool GetVCPFeature(
+        IntPtr hPhysicalMonitor,
+        byte bVCPCode,
+        out uint pvct,
+        out uint pdwCurrentValue,
+        out uint pdwMaximumValue);
+
+    // VCP code 0xD6 — DPMS power state
+    internal const byte VcpDisplayPower = 0xD6;
+    internal const uint DpmsOn          = 1;   // D0: fully on
+    internal const uint DpmsStandby     = 4;   // D1: standby
 }

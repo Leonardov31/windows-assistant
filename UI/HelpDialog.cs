@@ -35,6 +35,29 @@ internal sealed class HelpDialog : Form
             "Ei Windows, brilho 8 monitor 1"
 
 
+        MONITOR POWER (ON / OFF)
+        ------------------------
+        Puts monitors into DPMS standby or wakes them.
+        Works with any DDC/CI monitor.
+
+          English:
+            "Hey Windows, turn off monitor 1"
+            "Hey Windows, turn on monitor 2"
+            "Hey Windows, disable monitor 1"
+            "Hey Windows, enable monitor 2"
+            "Hey Windows, turn off all monitors"
+            "Hey Windows, turn on monitor"  (all)
+
+          Português:
+            "Ei Windows, desligar monitor 1"
+            "Ei Windows, ligar monitor 2"
+            "Ei Windows, desligar todos monitor"
+            "Ei Windows, ligar monitor"  (todos)
+
+        Note: to wake a monitor by voice, your
+        microphone must not be on the sleeping monitor.
+
+
         SPEECH SPEED
         ------------
         The app automatically detects your speaking pace

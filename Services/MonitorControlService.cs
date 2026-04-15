@@ -56,6 +56,31 @@ public sealed class MonitorControlService : IDisposable
             : null;
     }
 
+    /// <summary>Sets the DPMS power state of a monitor via VCP code 0xD6.</summary>
+    /// <param name="monitorIndex">Zero-based monitor index.</param>
+    /// <param name="on"><c>true</c> = power on, <c>false</c> = standby.</param>
+    /// <returns><c>true</c> on success.</returns>
+    public bool SetMonitorPower(int monitorIndex, bool on)
+    {
+        if (!IsValidIndex(monitorIndex)) return false;
+        uint value = on ? NativeMethods.DpmsOn : NativeMethods.DpmsStandby;
+        return NativeMethods.SetVCPFeature(
+            _monitors[monitorIndex].Handle,
+            NativeMethods.VcpDisplayPower,
+            value);
+    }
+
+    /// <summary>Sets the DPMS power state for all enumerated monitors.</summary>
+    /// <returns><c>true</c> only if all monitors succeeded.</returns>
+    public bool SetAllMonitorsPower(bool on)
+    {
+        if (_monitors.Count == 0) return false;
+        bool allOk = true;
+        for (int i = 0; i < _monitors.Count; i++)
+            allOk &= SetMonitorPower(i, on);
+        return allOk;
+    }
+
     /// <summary>Returns display-name descriptions for all detected monitors.</summary>
     public IReadOnlyList<string> GetMonitorDescriptions()
         => _monitors.Select(m => m.Description).ToList();

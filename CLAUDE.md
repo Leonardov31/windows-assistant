@@ -38,7 +38,7 @@ If a language pack isn't installed, that engine is silently skipped.
 `TrayApplication` (in `UI/`) owns the lifecycle. Its constructor:
 1. Runs `LanguageSetupService.CheckAndPromptInstall()` — checks for missing speech language packs and prompts installation
 2. Creates `MonitorControlService` — enumerates physical monitors, exposes DDC/CI brightness get/set via P/Invoke to `dxva2.dll`
-3. Builds a list of `ICommandHandler` implementations (currently just `BrightnessCommandHandler`)
+3. Builds a list of `ICommandHandler` implementations (`BrightnessCommandHandler`, `MonitorPowerCommandHandler`)
 4. Creates `VoiceListenerService` — creates one engine per culture from handlers' `SupportedCultures`
 
 ### Language dependency check
@@ -61,5 +61,6 @@ If a language pack isn't installed, that engine is silently skipped.
 - Wake phrases per culture are defined in `VoiceListenerService.WakePhrases`
 - Monitor indices are 1-based in voice commands, 0-based internally
 - Brightness scale in voice: 1–10 maps to 10%–100% (level × 10)
+- Monitor power uses VCP code 0xD6 via `SetVCPFeature` (1 = on, 4 = standby)
 - Crash logs are written to `%LOCALAPPDATA%/WindowsAssistant/crash.log`
 - Speech speed auto-adapts based on rolling average of words-per-second
