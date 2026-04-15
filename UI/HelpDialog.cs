@@ -22,49 +22,56 @@ internal sealed class HelpDialog : Form
             Numbers are spoken as words (cinco, fifty) — not digits.
             """),
 
-        ("Wake phrases", """
-            Português:   Ei Computador   •   Oi Computador   •   Olá Computador
-            English:     Hey Windows     •   Hey Computer
+        ("Wake phrase", """
+            The wake phrase is user-defined — set it from the tray menu
+            (Wake phrase... → type any word or short sentence). Default is
+            "computador". Use words the selected speech model knows; if a
+            phrase never triggers, try a common dictionary word instead.
+
+            Only one language is active at a time. Switch between Português
+            and English from the tray menu → Language.
             """),
 
         ("Brightness control", """
             Values 0–10 are levels (×10). 20, 30, ..., 100 are direct percentages.
 
             Short form
-              Ei Computador primeiro cinco         →  M1 at 50%
-              Ei Computador monitor um cinquenta   →  M1 at 50%
-              Ei Computador ambos três             →  all at 30%
-              Hey Windows first five               →  M1 at 50%
-              Hey Windows both fifty               →  all at 50%
+              {wake} primeiro cinco         →  M1 at 50%
+              {wake} monitor um cinquenta   →  M1 at 50%
+              {wake} ambos três             →  all at 30%
+              {wake} first five             →  M1 at 50%
+              {wake} both fifty             →  all at 50%
 
             Long form — keyword + value + monitor
-              Ei Computador brilho cinco no primeiro
-              Oi Computador luminosidade oito no segundo
-              Olá Computador luz sete no terceiro
-              Hey Windows brightness fifty on first
-              Hey Windows brightness five on monitor two
+              {wake} brilho cinco no primeiro
+              {wake} luminosidade oito no segundo
+              {wake} luz sete no terceiro
+              {wake} brightness fifty on first
+              {wake} brightness five on monitor two
 
             Long form — monitor + keyword + value
-              Ei Computador primeiro brilho três
-              Ei Computador quarto luminosidade oito
-              Hey Windows monitor one brightness five
+              {wake} primeiro brilho três
+              {wake} quarto luminosidade oito
+              {wake} monitor one brightness five
 
             Monitors:       monitor um..cinco  /  monitor one..five
             Ordinals:       primeiro..quinto   /  first..fifth
             All:            ambos, todos       /  both, all
             Brightness:     brilho, luminosidade, luz  /  brightness
+
+            Replace {wake} above with whatever you set in the tray menu.
             """),
 
         ("Monitor power (on / off)", """
             Puts a monitor into standby or wakes it — one monitor per command.
 
-              Ei Computador desligar monitor um
-              Ei Computador apaga primeiro
-              Oi Computador acende segundo
-              Olá Computador ligue terceiro
-              Hey Windows turn off monitor one
-              Hey Windows enable first
-              Hey Windows first off
+              {wake} desligar monitor um
+              {wake} apaga primeiro
+              {wake} acende segundo
+              {wake} ligue terceiro
+              {wake} turn off monitor one
+              {wake} enable first
+              {wake} first off
 
             Power on:   ligar, liga, ligue, ativar, acender, acende, acenda
                         on, enable, turn on
@@ -83,8 +90,10 @@ internal sealed class HelpDialog : Form
             """),
 
         ("Tray menu", """
-            Languages      —  toggle pt-BR / en-US at runtime. Disabling a
-                              language frees ~130 MB of RAM used by the Vosk model.
+            Language       —  pick pt-BR or en-US; only one is loaded at a
+                              time, keeping the footprint around ~210 MB.
+            Wake phrase... —  open a dialog to type any word or sentence
+                              the app should listen for.
             Monitors       —  click to list the detected displays in a balloon.
             Refresh        —  re-enumerate displays after plugging one in/out.
             Start with Windows  —  optional autostart on logon.

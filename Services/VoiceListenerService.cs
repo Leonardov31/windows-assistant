@@ -9,11 +9,11 @@ namespace WindowsAssistant.Services;
 /// Continuously listens for the wake phrase followed by a registered command,
 /// using offline Vosk speech recognition.
 ///
-/// One <see cref="VoskRecognizer"/> is created per detected culture whose model
-/// is present on disk (see <see cref="VoskModelSetupService"/>). Microphone
-/// audio is captured once (<see cref="AudioCaptureService"/>) and fanned out
-/// to every recognizer in parallel; utterances below <see cref="MinConfidence"/>
-/// are dropped.
+/// Only one <see cref="VoskRecognizer"/> is active at a time — the one for
+/// <see cref="AppSettings.ActiveCulture"/>. The wake phrase is user-defined
+/// (<see cref="AppSettings.WakePhrase"/>); its tokens are injected into the
+/// grammar alongside each handler's vocabulary. Switching language or wake
+/// phrase disposes the current model and reloads.
 /// </summary>
 public sealed class VoiceListenerService : IDisposable
 {
@@ -23,17 +23,6 @@ public sealed class VoiceListenerService : IDisposable
     /// small-pt-0.3 and small-en-us-0.15 models.
     /// </summary>
     private const float MinConfidence = 0.65f;
-
-    private static readonly Dictionary<string, string[]> WakePhrases = new()
-    {
-        ["en-US"] = ["hey windows", "hey computer"],
-        // "windows" is missing from vosk-model-small-pt-0.3's pronunciation
-        // dictionary (foreign word), which caused the decoder to either emit
-        // [unk] or split the utterance at that token. Using Portuguese words
-        // that are guaranteed to be in the lexicon gives reliable wake-phrase
-        // recognition on small pt-BR models.
-        ["pt-BR"] = ["ei computador", "oi computador", "olá computador", "ola computador"],
-    };
 
     /// <summary>Cultures known to the app, in preferred load order.</summary>
     public static readonly IReadOnlyList<string> KnownCultures = new[] { "pt-BR", "en-US" };
@@ -51,27 +40,21 @@ public sealed class VoiceListenerService : IDisposable
         }
     }
 
-    private readonly List<RecognizerEntry> _engines = new();
     private readonly IReadOnlyList<ICommandHandler> _handlers;
+    private readonly AppSettings _settings;
     private readonly AudioCaptureService _audio = new();
     private readonly Lock _recognizersLock = new();
+    private RecognizerEntry? _engine;
     private bool _disposed;
     private bool _running;
 
     public event EventHandler<CommandEventArgs>? CommandExecuted;
     public event EventHandler<string>? EngineStatus;
-    public event EventHandler? ActiveCulturesChanged;
+    public event EventHandler? ConfigurationChanged;
 
-    public IReadOnlyList<string> ActiveCultures
-    {
-        get { lock (_recognizersLock) return _engines.Select(e => e.Culture.Name).ToList(); }
-    }
-
-    public bool IsCultureActive(string cultureName)
-    {
-        lock (_recognizersLock)
-            return _engines.Any(e => string.Equals(e.Culture.Name, cultureName, StringComparison.OrdinalIgnoreCase));
-    }
+    public string ActiveCulture => _settings.ActiveCulture;
+    public string WakePhrase    => _settings.WakePhrase;
+    public bool IsRunning       => _running;
 
     static VoiceListenerService()
     {
@@ -79,21 +62,16 @@ public sealed class VoiceListenerService : IDisposable
         Vosk.Vosk.SetLogLevel(-1);
     }
 
-    public VoiceListenerService(IReadOnlyList<ICommandHandler> handlers)
+    public VoiceListenerService(IReadOnlyList<ICommandHandler> handlers, AppSettings settings)
     {
         _handlers = handlers;
+        _settings = settings;
 
-        var cultures = handlers
-            .SelectMany(h => h.SupportedCultures)
-            .Distinct()
-            .ToList();
+        LoadActiveEngine();
 
-        foreach (var culture in cultures)
-            TryCreateEngine(culture);
-
-        if (_engines.Count == 0)
+        if (_engine is null)
             throw new InvalidOperationException(
-                "No Vosk models could be loaded. Make sure the models finished " +
+                "No Vosk model could be loaded. Make sure the models finished " +
                 "downloading under %LOCALAPPDATA%\\WindowsAssistant\\Models\\.");
 
         _audio.DataAvailable += OnAudioAvailable;
@@ -111,7 +89,8 @@ public sealed class VoiceListenerService : IDisposable
         _running = true;
 
         var devices = AudioCaptureService.EnumerateDevices();
-        Log($"[{DateTime.Now:HH:mm:ss}] Cultures loaded: {string.Join(", ", ActiveCultures)}");
+        Log($"[{DateTime.Now:HH:mm:ss}] Active culture: {_settings.ActiveCulture}");
+        Log($"[{DateTime.Now:HH:mm:ss}] Wake phrase: \"{_settings.WakePhrase}\"");
         Log($"[{DateTime.Now:HH:mm:ss}] Input devices ({devices.Count}): {string.Join(" | ", devices)}");
         Log($"[{DateTime.Now:HH:mm:ss}] Using device: {_audio.DeviceName}");
         Log($"[{DateTime.Now:HH:mm:ss}] Min confidence: {MinConfidence:P0}");
@@ -124,12 +103,40 @@ public sealed class VoiceListenerService : IDisposable
         _running = false;
     }
 
+    /// <summary>Switches the active culture, reloading the Vosk model.</summary>
+    public void SetActiveCulture(string cultureName)
+    {
+        if (string.Equals(_settings.ActiveCulture, cultureName, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _settings.ActiveCulture = cultureName;
+        _settings.Save();
+        ReloadEngine();
+
+        Log($"[{DateTime.Now:HH:mm:ss}] Active culture changed: {cultureName}");
+    }
+
+    /// <summary>Updates the wake phrase and rebuilds the current recognizer.</summary>
+    public void SetWakePhrase(string phrase)
+    {
+        var normalized = (phrase ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(normalized)) return;
+        if (normalized == _settings.WakePhrase) return;
+
+        _settings.WakePhrase = normalized;
+        _settings.Save();
+        ReloadEngine();
+
+        Log($"[{DateTime.Now:HH:mm:ss}] Wake phrase changed: \"{normalized}\"");
+    }
+
     // -------------------------------------------------------------------------
-    // Engine factory
+    // Engine lifecycle
     // -------------------------------------------------------------------------
 
-    private void TryCreateEngine(CultureInfo culture)
+    private void LoadActiveEngine()
     {
+        var culture  = new CultureInfo(_settings.ActiveCulture);
         var modelPath = VoskModelSetupService.GetModelPath(culture.Name);
         if (modelPath is null)
         {
@@ -139,22 +146,23 @@ public sealed class VoiceListenerService : IDisposable
 
         try
         {
-            var model = new Model(modelPath);
-            var grammar = BuildGrammarJson(culture);
+            var model      = new Model(modelPath);
+            var grammar    = BuildGrammarJson(culture);
             var recognizer = new VoskRecognizer(model, AudioCaptureService.SampleRate, grammar);
-            recognizer.SetWords(true); // enable per-word confidence in results
+            recognizer.SetWords(true);
 
             lock (_recognizersLock)
             {
-                _engines.Add(new RecognizerEntry
+                _engine = new RecognizerEntry
                 {
                     Culture    = culture,
                     Model      = model,
                     Recognizer = recognizer,
-                });
+                };
             }
 
             EngineStatus?.Invoke(this, $"Loaded: {culture.Name}");
+            ConfigurationChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -162,52 +170,25 @@ public sealed class VoiceListenerService : IDisposable
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Runtime culture toggle
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Loads or unloads a culture's recognizer at runtime. Disabling a culture
-    /// disposes its Model + VoskRecognizer, freeing the ~130 MB they occupy.
-    /// Enabling re-loads the model from disk (models must already be present).
-    /// </summary>
-    public void SetCultureEnabled(string cultureName, bool enabled)
+    private void ReloadEngine()
     {
-        if (enabled)
+        RecognizerEntry? old;
+        lock (_recognizersLock)
         {
-            if (IsCultureActive(cultureName)) return;
-            TryCreateEngine(new CultureInfo(cultureName));
-            Log($"[{DateTime.Now:HH:mm:ss}] Enabled culture: {cultureName}");
+            old = _engine;
+            _engine = null;
         }
-        else
-        {
-            RecognizerEntry? removed = null;
-            lock (_recognizersLock)
-            {
-                var entry = _engines.FirstOrDefault(e =>
-                    string.Equals(e.Culture.Name, cultureName, StringComparison.OrdinalIgnoreCase));
-                if (entry is null) return;
-                _engines.Remove(entry);
-                removed = entry;
-            }
-            removed.Dispose();
-            Log($"[{DateTime.Now:HH:mm:ss}] Disabled culture: {cultureName}");
-        }
-
-        ActiveCulturesChanged?.Invoke(this, EventArgs.Empty);
+        old?.Dispose();
+        LoadActiveEngine();
     }
 
     private string BuildGrammarJson(CultureInfo culture)
     {
         var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Wake phrase tokens from EVERY culture go into EVERY recognizer's grammar.
-        // Users often mix "hey windows" with a pt-BR command (or vice-versa); if
-        // only culture-specific tokens are allowed the recognizer can't transcribe
-        // the wake phrase and the whole utterance is lost.
-        foreach (var phrase in WakePhrases.Values.SelectMany(v => v))
-            foreach (var token in phrase.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                words.Add(token);
+        // Wake phrase tokens — user-configurable, may contain multiple words
+        foreach (var token in _settings.WakePhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            words.Add(token);
 
         foreach (var handler in _handlers)
         {
@@ -224,22 +205,22 @@ public sealed class VoiceListenerService : IDisposable
     }
 
     // -------------------------------------------------------------------------
-    // Audio → recognizers
+    // Audio → recognizer
     // -------------------------------------------------------------------------
 
     private void OnAudioAvailable(object? sender, byte[] pcm)
     {
+        RecognizerEntry? entry;
         lock (_recognizersLock)
-        {
-            foreach (var entry in _engines)
-            {
-                if (!entry.Recognizer.AcceptWaveform(pcm, pcm.Length))
-                    continue;
+            entry = _engine;
 
-                var json = entry.Recognizer.Result();
-                HandleFinalResult(entry.Culture, json);
-            }
-        }
+        if (entry is null) return;
+
+        if (!entry.Recognizer.AcceptWaveform(pcm, pcm.Length))
+            return;
+
+        var json = entry.Recognizer.Result();
+        HandleFinalResult(entry.Culture, json);
     }
 
     private void HandleFinalResult(CultureInfo culture, string json)
@@ -255,8 +236,7 @@ public sealed class VoiceListenerService : IDisposable
         var text = CommandVocabulary.NormalizeNumbers(rawText, culture);
 
         // Diagnostic logging: every final recognition is logged, with the reason
-        // it was kept or dropped. Essential for tuning vocabulary, wake phrases,
-        // and confidence thresholds when users report "I spoke but nothing happened".
+        // it was kept or dropped. Essential for tuning vocabulary and wake phrases.
         string prefix = text == rawText
             ? $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" ({confidence:P0})"
             : $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" (raw: \"{rawText}\") ({confidence:P0})";
@@ -267,7 +247,7 @@ public sealed class VoiceListenerService : IDisposable
             return;
         }
 
-        if (!StartsWithAnyWakePhrase(text))
+        if (!text.StartsWith(_settings.WakePhrase, StringComparison.OrdinalIgnoreCase))
         {
             Log($"{prefix} DROPPED: no wake phrase");
             return;
@@ -280,7 +260,7 @@ public sealed class VoiceListenerService : IDisposable
             var result = handler.TryHandle(output);
             if (result is null) continue;
 
-            var command = StripWakePhrase(output.Text);
+            var command = text[_settings.WakePhrase.Length..].TrimStart();
             var outcome = result.Success ? result.Message : $"FAILED: {result.Message}";
             Log($"{prefix} → [{handler.Name}] {outcome} (command: \"{command}\")");
 
@@ -293,7 +273,8 @@ public sealed class VoiceListenerService : IDisposable
         }
 
         // Wake phrase ok, confidence ok, but no handler matched the text pattern
-        Log($"{prefix} DROPPED: no handler matched (command: \"{StripWakePhrase(text)}\")");
+        var stripped = text[_settings.WakePhrase.Length..].TrimStart();
+        Log($"{prefix} DROPPED: no handler matched (command: \"{stripped}\")");
     }
 
     /// <summary>
@@ -344,26 +325,6 @@ public sealed class VoiceListenerService : IDisposable
         }
     }
 
-    private static bool StartsWithAnyWakePhrase(string text)
-    {
-        foreach (var wake in WakePhrases.Values.SelectMany(v => v))
-        {
-            if (text.StartsWith(wake, StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-        return false;
-    }
-
-    private static string StripWakePhrase(string text)
-    {
-        foreach (var wake in WakePhrases.Values.SelectMany(v => v))
-        {
-            if (text.StartsWith(wake, StringComparison.OrdinalIgnoreCase))
-                return text[wake.Length..].TrimStart();
-        }
-        return text;
-    }
-
     private static void Log(string message)
     {
         Console.WriteLine(message);
@@ -390,8 +351,11 @@ public sealed class VoiceListenerService : IDisposable
         Stop();
         _audio.DataAvailable -= OnAudioAvailable;
         _audio.Dispose();
-        foreach (var entry in _engines)
-            entry.Dispose();
+        lock (_recognizersLock)
+        {
+            _engine?.Dispose();
+            _engine = null;
+        }
         _disposed = true;
     }
 }

@@ -14,15 +14,19 @@ namespace WindowsAssistant.UI;
 /// </summary>
 public sealed class TrayApplication : ApplicationContext, IDisposable
 {
+    private readonly AppSettings           _settings;
     private readonly MonitorControlService _monitorService;
     private readonly VoiceListenerService  _voiceService;
     private readonly NotifyIcon            _trayIcon;
     private ToolStripMenuItem? _statusItem;
     private ToolStripMenuItem? _monitorsItem;
+    private ToolStripMenuItem? _wakePhraseItem;
     private bool _disposed;
 
     public TrayApplication()
     {
+        _settings = AppSettings.Load();
+
         // Make sure the Vosk speech models are present before wiring the listener
         VoskModelSetupService.EnsureModelsAvailable();
 
@@ -32,14 +36,15 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         // Re-enumerate when the user connects/disconnects a display
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
 
-        _voiceService = new VoiceListenerService(BuildHandlers());
+        _voiceService = new VoiceListenerService(BuildHandlers(), _settings);
         _voiceService.CommandExecuted += OnCommandExecuted;
         _voiceService.Start();
 
         _trayIcon = BuildTrayIcon();
 
-        var langs = string.Join(", ", _voiceService.ActiveCultures);
-        _trayIcon.ShowBalloonTip(3000, "Windows Assistant", $"Listening ({langs})", ToolTipIcon.Info);
+        _trayIcon.ShowBalloonTip(3000, "Windows Assistant",
+            $"Listening in {PrettyCultureName(_settings.ActiveCulture)} for \"{_settings.WakePhrase}\"",
+            ToolTipIcon.Info);
     }
 
     // -------------------------------------------------------------------------
@@ -106,9 +111,12 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         menu.Items.Add(new ToolStripSeparator());
 
         // --- Voice settings -----------------------------------------------
-        var languagesMenu = BuildLanguagesMenu();
-        languagesMenu.Image = RenderGlyph(FluentIcon.Globe, colors.Foreground);
-        menu.Items.Add(languagesMenu);
+        var languageMenu = BuildLanguageMenu();
+        languageMenu.Image = RenderGlyph(FluentIcon.Globe, colors.Foreground);
+        menu.Items.Add(languageMenu);
+
+        _wakePhraseItem = MakeItem(BuildWakePhraseText(), FluentIcon.Edit, colors, (_, _) => EditWakePhrase());
+        menu.Items.Add(_wakePhraseItem);
 
         menu.Items.Add(new ToolStripSeparator());
 
@@ -126,7 +134,7 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         menu.Items.Add(MakeItem("Exit", FluentIcon.Exit, colors, (_, _) => Shutdown()));
 
         // Live updates -----------------------------------------------------
-        _voiceService.ActiveCulturesChanged += (_, _) => RefreshStatus();
+        _voiceService.ConfigurationChanged += (_, _) => RefreshStatus();
 
         return new NotifyIcon
         {
@@ -137,14 +145,11 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         };
     }
 
-    private string BuildStatusText()
-    {
-        var cultures = _voiceService.ActiveCultures;
-        if (cultures.Count == 0) return "Status: no languages active";
+    private string BuildStatusText() =>
+        $"Status: listening in {PrettyCultureName(_voiceService.ActiveCulture)}";
 
-        var names = string.Join(" + ", cultures.Select(PrettyCultureName));
-        return $"Status: listening ({names})";
-    }
+    private string BuildWakePhraseText() =>
+        $"Wake phrase: \"{_voiceService.WakePhrase}\"";
 
     private string BuildMonitorsText() =>
         _monitorService.Count == 0
@@ -160,43 +165,57 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
 
     private void RefreshStatus()
     {
-        if (_statusItem is not null)   _statusItem.Text   = BuildStatusText();
-        if (_monitorsItem is not null) _monitorsItem.Text = BuildMonitorsText();
+        if (_statusItem is not null)     _statusItem.Text     = BuildStatusText();
+        if (_monitorsItem is not null)   _monitorsItem.Text   = BuildMonitorsText();
+        if (_wakePhraseItem is not null) _wakePhraseItem.Text = BuildWakePhraseText();
     }
 
-    private ToolStripMenuItem BuildLanguagesMenu()
+    private ToolStripMenuItem BuildLanguageMenu()
     {
-        var menu = new ToolStripMenuItem("Languages");
+        var menu = new ToolStripMenuItem("Language");
 
         foreach (var culture in VoiceListenerService.KnownCultures)
         {
             var item = new ToolStripMenuItem($"{PrettyCultureName(culture)} ({culture})")
             {
-                Tag          = culture,
-                Checked      = _voiceService.IsCultureActive(culture),
-                CheckOnClick = true,
+                Tag     = culture,
+                Checked = string.Equals(culture, _voiceService.ActiveCulture, StringComparison.OrdinalIgnoreCase),
             };
-            item.Click += (s, _) => OnLanguageToggled((ToolStripMenuItem)s!);
+            item.Click += (s, _) => OnLanguageSelected((ToolStripMenuItem)s!);
             menu.DropDownItems.Add(item);
         }
 
-        _voiceService.ActiveCulturesChanged += (_, _) =>
+        _voiceService.ConfigurationChanged += (_, _) =>
         {
             foreach (ToolStripMenuItem item in menu.DropDownItems)
-                item.Checked = _voiceService.IsCultureActive((string)item.Tag!);
+                item.Checked = string.Equals((string)item.Tag!, _voiceService.ActiveCulture, StringComparison.OrdinalIgnoreCase);
         };
 
         return menu;
     }
 
-    private void OnLanguageToggled(ToolStripMenuItem item)
+    private void OnLanguageSelected(ToolStripMenuItem item)
     {
         var culture = (string)item.Tag!;
-        _voiceService.SetCultureEnabled(culture, item.Checked);
+        if (string.Equals(culture, _voiceService.ActiveCulture, StringComparison.OrdinalIgnoreCase))
+            return;
 
-        var state = item.Checked ? "enabled" : "disabled";
+        _voiceService.SetActiveCulture(culture);
         _trayIcon.ShowBalloonTip(2000, "Windows Assistant",
-            $"{PrettyCultureName(culture)} {state}", ToolTipIcon.Info);
+            $"Language: {PrettyCultureName(culture)}", ToolTipIcon.Info);
+    }
+
+    private void EditWakePhrase()
+    {
+        using var dialog = new WakePhraseDialog(_voiceService.WakePhrase);
+        if (dialog.ShowDialog() != DialogResult.OK) return;
+
+        var newPhrase = dialog.WakePhrase;
+        if (string.IsNullOrWhiteSpace(newPhrase)) return;
+
+        _voiceService.SetWakePhrase(newPhrase);
+        _trayIcon.ShowBalloonTip(2500, "Windows Assistant",
+            $"Wake phrase: \"{_voiceService.WakePhrase}\"", ToolTipIcon.Info);
     }
 
     private void ShowHelp()
@@ -248,6 +267,7 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         public const string Monitor    = "\uE7F4";
         public const string Refresh    = "\uE72C";
         public const string Globe      = "\uF2B7";
+        public const string Edit       = "\uE70F";
         public const string Play       = "\uE768";
         public const string Exit       = "\uE7E8";
     }
