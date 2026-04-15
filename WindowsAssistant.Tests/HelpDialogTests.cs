@@ -73,6 +73,7 @@ public class HelpDialogTests : IDisposable
     [InlineData("Ei Windows")]
     [InlineData("brightness")]
     [InlineData("brilho")]
+    [InlineData("Short form")]
     [InlineData("monitor")]
     [InlineData("Speech speed")]
     [InlineData("Slow")]
@@ -103,7 +104,7 @@ public class HelpDialogTests : IDisposable
     public void HelpContent_DocumentsPortugueseExamples()
     {
         var textBox = (TextBox)_dialog.Controls[0];
-        Assert.Contains("brilho 3 no monitor 1", textBox.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("brilho 5 no monitor 1", textBox.Text, StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose() => _dialog.Dispose();

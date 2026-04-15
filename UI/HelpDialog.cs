@@ -22,17 +22,16 @@ internal sealed class HelpDialog : Form
         BRIGHTNESS CONTROL
         ------------------
         Changes monitor brightness via DDC/CI.
-        Scale: 1–10 (maps to 10%–100%).
 
-          English:
-            "Hey Windows, brightness 3 in monitor 1"
-            "Hey Windows, brightness 7 on monitor 2"
-            "Hey Windows, brightness 10 monitor 1"
+        Full form (scale 1–10 → 10%–100%):
+          "Hey Windows, brightness 3 in monitor 1"
+          "Hey Windows, brightness 7 on monitor 2"
+          "Ei Windows, brilho 5 no monitor 1"
 
-          Português:
-            "Ei Windows, brilho 3 no monitor 1"
-            "Ei Windows, brilho 5 do monitor 2"
-            "Ei Windows, brilho 8 monitor 1"
+        Short form (direct percentage):
+          "Hey Windows, monitor 1 20"   → 20%
+          "Hey Windows, monitor 2 100"  → 100%
+          "Ei Windows, monitor 1 50"    → 50%
 
 
         MONITOR POWER (ON / OFF)
