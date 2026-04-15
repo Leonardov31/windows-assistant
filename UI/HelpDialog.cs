@@ -14,101 +14,112 @@ internal sealed class HelpDialog : Form
         WINDOWS ASSISTANT — VOICE COMMANDS
         ===================================
 
-        WAKE PHRASES
-          English:    "Hey Windows" / "Hey Computer"
-          Português:  "Ei Computador" / "Oi Computador" / "Olá Computador"
+        HOW IT WORKS
+        ------------
+        Speech recognition runs offline via Vosk. Each
+        utterance must start with a wake phrase, followed
+        by the command, all in one breath. Numbers are
+        spoken as words (cinco, fifty), not digits.
 
-        Tip: números devem ser falados por extenso
-          ex: "Ei Computador, brilho cinquenta no primeiro"
-          ex: "Hey Windows, brightness fifty on first"
+        WAKE PHRASES
+          Português:  "Ei Computador"
+                      "Oi Computador"
+                      "Olá Computador"
+          English:    "Hey Windows"
+                      "Hey Computer"
 
 
         BRIGHTNESS CONTROL
         ------------------
         Controls monitor brightness via DDC/CI.
-        Values 0–10 are levels (×10). Above 10 = direct %.
+        Values 0–10 are levels (×10). 20, 30, ..., 100
+        are direct percentages.
 
         Short form:
-          "Hey Windows, first 5"             → monitor 1 at 50%
-          "Hey Windows, monitor 1 50"        → monitor 1 at 50%
-          "Hey Windows, both 3"              → all monitors at 30%
-          "Ei Windows, primeiro 8"           → monitor 1 at 80%
-          "Ei Windows, ambos 5"              → all monitors at 50%
+          "Ei Computador primeiro cinco"      → M1 at 50%
+          "Ei Computador monitor um cinquenta" → M1 at 50%
+          "Ei Computador ambos três"          → all at 30%
+          "Hey Windows first five"            → M1 at 50%
+          "Hey Windows both fifty"            → all at 50%
 
-        Long form 1:
-          "Hey Windows, brightness 5 on monitor 1"
-          "Ei Windows, brilho 3 no monitor 1"
-          "Ei Windows, luminosidade 5 no segundo"
-          "Ei Windows, luz 7 no terceiro"
-          "Hey Windows, brightness 5 on first"
+        Long form — keyword + value + monitor:
+          "Ei Computador brilho cinco no primeiro"
+          "Oi Computador luminosidade oito no segundo"
+          "Olá Computador luz sete no terceiro"
+          "Hey Windows brightness fifty on first"
+          "Hey Windows brightness five on monitor two"
 
-        Long form 2:
-          "Hey Windows, monitor 1 brightness 5"
-          "Ei Windows, primeiro brilho 3"
-          "Ei Windows, quarto luminosidade 8"
+        Long form — monitor + keyword + value:
+          "Ei Computador primeiro brilho três"
+          "Ei Computador quarto luminosidade oito"
+          "Hey Windows monitor one brightness five"
 
-        Monitors: monitor 1–5, or ordinals:
-          first/primeiro, second/segundo,
-          third/terceiro, fourth/quarto,
-          fifth/quinto.
-        All: both/all, ambos/todos.
-        Brightness keyword (pt-BR):
-          brilho / luminosidade / luz.
+        Monitors: monitor um..cinco / monitor one..five
+          or ordinals:
+            primeiro / segundo / terceiro / quarto / quinto
+            first / second / third / fourth / fifth
+        All: ambos, todos / both, all
+        Brightness (pt-BR): brilho / luminosidade / luz
 
 
         MONITOR POWER (ON / OFF)
         ------------------------
-        Puts a monitor into standby or wakes it.
-        Single monitor only.
+        Puts a monitor into standby or wakes it. Single
+        monitor per command.
 
-          "Hey Windows, turn off monitor 1"
-          "Hey Windows, enable first"
-          "Hey Windows, first off"
-          "Ei Windows, desligar monitor 1"
-          "Ei Windows, apaga o primeiro" (see note*)
-          "Ei Windows, acende segundo"
-          "Ei Windows, ligue terceiro"
-          "Ei Windows, primeiro desativar"
+          "Ei Computador desligar monitor um"
+          "Ei Computador apaga primeiro"
+          "Oi Computador acende segundo"
+          "Olá Computador ligue terceiro"
+          "Ei Computador primeiro desativar"
+          "Hey Windows turn off monitor one"
+          "Hey Windows enable first"
+          "Hey Windows first off"
 
-        *Grammar does not include articles; say
-        "apaga primeiro" (not "apaga o primeiro").
-
-        Power on:  on, enable, turn on,
-                   ligar, liga, ligue, ativar,
-                   acender, acende, acenda
-        Power off: off, disable, turn off,
-                   desligar, desliga, desligue,
-                   desativar, apagar, apaga, apague
-
-        Note: to wake a monitor by voice, your
-        microphone must not be on the sleeping monitor.
+        Power on:  ligar / liga / ligue / ativar /
+                   acender / acende / acenda
+                   on / enable / turn on
+        Power off: desligar / desliga / desligue /
+                   desativar / apagar / apaga / apague
+                   off / disable / turn off
 
 
-        SPEECH SPEED
+        NUMBER WORDS
         ------------
-        The app automatically detects your speaking pace
-        (Slow / Normal / Fast) and adjusts recognition
-        accordingly. You can also set it manually via the
-        tray icon menu → Speech speed.
+        Português:  zero, um, dois, três, quatro, cinco,
+                    seis, sete, oito, nove, dez,
+                    vinte, trinta, quarenta, cinquenta,
+                    sessenta, setenta, oitenta, noventa, cem
+        English:    zero, one, two, three, four, five,
+                    six, seven, eight, nine, ten,
+                    twenty, thirty, forty, fifty, sixty,
+                    seventy, eighty, ninety, hundred
 
 
-        LANGUAGE SETUP
-        --------------
-        On startup the app checks whether each required
-        speech language pack is installed. If any are
-        missing it will offer to install them automatically
-        (requires administrator privileges).
-
-        You can also install them manually:
-          Settings → Time & Language → Language
-          → Add a language → enable Speech recognition
+        TRAY MENU
+        ---------
+        • Languages      — toggle pt-BR / en-US at runtime.
+                           Disabling a language frees ~130 MB
+                           of RAM used by its Vosk model.
+        • Speech speed   — adjusts confidence threshold
+                           (Slow / Normal / Fast). Auto-detects
+                           your pace if left on Normal.
+        • Monitors       — click to list detected displays.
+        • Start with Windows — optional autostart on logon.
 
 
         TIPS
         ----
-        • Monitors must support DDC/CI (most external
-          monitors do; laptop built-in screens usually don't).
-        • Right-click the tray icon for all options.
+        • Speak the wake phrase + command as ONE utterance,
+          no pause in the middle.
+        • Do NOT use articles ("o", "a"). Say "apaga primeiro"
+          not "apaga o primeiro".
+        • If the monitor with the mic goes to standby, voice
+          control stops working until you wake it up manually.
+        • Monitors must support DDC/CI — most external
+          monitors do; laptop built-in screens rarely do.
+        • Check %LOCALAPPDATA%\\WindowsAssistant\\voice.log
+          to see what the recognizer transcribed.
         """;
 
     // =========================================================================
@@ -116,7 +127,7 @@ internal sealed class HelpDialog : Form
     internal HelpDialog()
     {
         Text            = "Windows Assistant — Help";
-        Size            = new Size(500, 480);
+        Size            = new Size(520, 640);
         StartPosition   = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox     = false;

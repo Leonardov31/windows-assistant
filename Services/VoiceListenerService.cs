@@ -33,12 +33,8 @@ public sealed class VoiceListenerService : IDisposable
         ["pt-BR"] = ["ei computador", "oi computador", "olá computador", "ola computador"],
     };
 
-    // Cultures that should actually be loaded at runtime.
-    private static readonly HashSet<string> EnabledCultures = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "pt-BR",
-        "en-US",
-    };
+    /// <summary>Cultures known to the app, in preferred load order.</summary>
+    public static readonly IReadOnlyList<string> KnownCultures = new[] { "pt-BR", "en-US" };
 
     private sealed class RecognizerEntry : IDisposable
     {
@@ -66,9 +62,19 @@ public sealed class VoiceListenerService : IDisposable
     public event EventHandler<CommandEventArgs>? CommandExecuted;
     public event EventHandler<SpeechSpeed>? SpeedChanged;
     public event EventHandler<string>? EngineStatus;
+    public event EventHandler? ActiveCulturesChanged;
 
     public SpeechSpeed Speed => _currentSpeed;
-    public IReadOnlyList<string> ActiveCultures => _engines.Select(e => e.Culture.Name).ToList();
+    public IReadOnlyList<string> ActiveCultures
+    {
+        get { lock (_recognizersLock) return _engines.Select(e => e.Culture.Name).ToList(); }
+    }
+
+    public bool IsCultureActive(string cultureName)
+    {
+        lock (_recognizersLock)
+            return _engines.Any(e => string.Equals(e.Culture.Name, cultureName, StringComparison.OrdinalIgnoreCase));
+    }
 
     static VoiceListenerService()
     {
@@ -135,12 +141,6 @@ public sealed class VoiceListenerService : IDisposable
 
     private void TryCreateEngine(CultureInfo culture)
     {
-        if (!EnabledCultures.Contains(culture.Name))
-        {
-            EngineStatus?.Invoke(this, $"Skipped: {culture.Name} (disabled)");
-            return;
-        }
-
         var modelPath = VoskModelSetupService.GetModelPath(culture.Name);
         if (modelPath is null)
         {
@@ -155,12 +155,15 @@ public sealed class VoiceListenerService : IDisposable
             var recognizer = new VoskRecognizer(model, AudioCaptureService.SampleRate, grammar);
             recognizer.SetWords(true); // enable per-word confidence in results
 
-            _engines.Add(new RecognizerEntry
+            lock (_recognizersLock)
             {
-                Culture    = culture,
-                Model      = model,
-                Recognizer = recognizer,
-            });
+                _engines.Add(new RecognizerEntry
+                {
+                    Culture    = culture,
+                    Model      = model,
+                    Recognizer = recognizer,
+                });
+            }
 
             EngineStatus?.Invoke(this, $"Loaded: {culture.Name}");
         }
@@ -168,6 +171,41 @@ public sealed class VoiceListenerService : IDisposable
         {
             EngineStatus?.Invoke(this, $"Failed to load {culture.Name}: {ex.Message}");
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Runtime culture toggle
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Loads or unloads a culture's recognizer at runtime. Disabling a culture
+    /// disposes its Model + VoskRecognizer, freeing the ~130 MB they occupy.
+    /// Enabling re-loads the model from disk (models must already be present).
+    /// </summary>
+    public void SetCultureEnabled(string cultureName, bool enabled)
+    {
+        if (enabled)
+        {
+            if (IsCultureActive(cultureName)) return;
+            TryCreateEngine(new CultureInfo(cultureName));
+            Log($"[{DateTime.Now:HH:mm:ss}] Enabled culture: {cultureName}");
+        }
+        else
+        {
+            RecognizerEntry? removed = null;
+            lock (_recognizersLock)
+            {
+                var entry = _engines.FirstOrDefault(e =>
+                    string.Equals(e.Culture.Name, cultureName, StringComparison.OrdinalIgnoreCase));
+                if (entry is null) return;
+                _engines.Remove(entry);
+                removed = entry;
+            }
+            removed.Dispose();
+            Log($"[{DateTime.Now:HH:mm:ss}] Disabled culture: {cultureName}");
+        }
+
+        ActiveCulturesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private string BuildGrammarJson(CultureInfo culture)

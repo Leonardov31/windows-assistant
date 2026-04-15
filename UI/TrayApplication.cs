@@ -16,6 +16,8 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
     private readonly MonitorControlService _monitorService;
     private readonly VoiceListenerService  _voiceService;
     private readonly NotifyIcon            _trayIcon;
+    private ToolStripMenuItem? _statusItem;
+    private ToolStripMenuItem? _monitorsItem;
     private bool _disposed;
 
     public TrayApplication()
@@ -55,26 +57,57 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
 
     private NotifyIcon BuildTrayIcon()
     {
+        var menu = new ContextMenuStrip
+        {
+            ShowImageMargin = true,
+            RenderMode      = ToolStripRenderMode.System,
+        };
+
+        // --- Header -------------------------------------------------------
+        var header = new ToolStripLabel("Windows Assistant")
+        {
+            Font      = new Font(menu.Font, FontStyle.Bold),
+            ForeColor = SystemColors.ControlDarkDark,
+            Enabled   = false,
+        };
+        menu.Items.Add(header);
+
+        _statusItem = new ToolStripMenuItem(BuildStatusText()) { Enabled = false };
+        menu.Items.Add(_statusItem);
+
+        menu.Items.Add(new ToolStripSeparator());
+
+        // --- Actions ------------------------------------------------------
+        menu.Items.Add("Help / Tutorial", null, (_, _) => ShowHelp());
+
+        _monitorsItem = new ToolStripMenuItem(BuildMonitorsText());
+        _monitorsItem.Click += OnShowMonitorInfo;
+        menu.Items.Add(_monitorsItem);
+
+        menu.Items.Add("Refresh monitors", null, (_, _) => RefreshMonitors());
+
+        menu.Items.Add(new ToolStripSeparator());
+
+        // --- Voice settings -----------------------------------------------
+        menu.Items.Add(BuildLanguagesMenu());
+        menu.Items.Add(BuildSpeedMenu());
+
+        menu.Items.Add(new ToolStripSeparator());
+
+        // --- System -------------------------------------------------------
         var startupItem = new ToolStripMenuItem("Start with Windows")
         {
             Checked      = StartupService.IsEnabled(),
             CheckOnClick = true,
         };
         startupItem.CheckedChanged += (_, _) => StartupService.SetEnabled(startupItem.Checked);
-
-        var menu = new ContextMenuStrip();
-
-        var header = (ToolStripMenuItem)menu.Items.Add("Windows Assistant");
-        header.Enabled = false;
-
-        menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Help / Tutorial", null, (_, _) => ShowHelp());
-        menu.Items.Add("Monitors detected: …", null, OnShowMonitorInfo);
-        menu.Items.Add("Refresh monitors",      null, (_, _) => RefreshMonitors());
-        menu.Items.Add(BuildSpeedMenu());
         menu.Items.Add(startupItem);
+
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Shutdown());
+
+        // Live updates -----------------------------------------------------
+        _voiceService.ActiveCulturesChanged += (_, _) => RefreshStatus();
 
         return new NotifyIcon
         {
@@ -83,6 +116,68 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
             ContextMenuStrip = menu,
             Visible          = true,
         };
+    }
+
+    private string BuildStatusText()
+    {
+        var cultures = _voiceService.ActiveCultures;
+        if (cultures.Count == 0) return "Status: no languages active";
+
+        var names = string.Join(" + ", cultures.Select(PrettyCultureName));
+        return $"Status: listening ({names})";
+    }
+
+    private string BuildMonitorsText() =>
+        _monitorService.Count == 0
+            ? "Monitors: none detected"
+            : $"Monitors: {_monitorService.Count} detected";
+
+    private static string PrettyCultureName(string name) => name switch
+    {
+        "pt-BR" => "Português",
+        "en-US" => "English",
+        _       => name,
+    };
+
+    private void RefreshStatus()
+    {
+        if (_statusItem is not null)   _statusItem.Text   = BuildStatusText();
+        if (_monitorsItem is not null) _monitorsItem.Text = BuildMonitorsText();
+    }
+
+    private ToolStripMenuItem BuildLanguagesMenu()
+    {
+        var menu = new ToolStripMenuItem("Languages");
+
+        foreach (var culture in VoiceListenerService.KnownCultures)
+        {
+            var item = new ToolStripMenuItem($"{PrettyCultureName(culture)} ({culture})")
+            {
+                Tag          = culture,
+                Checked      = _voiceService.IsCultureActive(culture),
+                CheckOnClick = true,
+            };
+            item.Click += (s, _) => OnLanguageToggled((ToolStripMenuItem)s!);
+            menu.DropDownItems.Add(item);
+        }
+
+        _voiceService.ActiveCulturesChanged += (_, _) =>
+        {
+            foreach (ToolStripMenuItem item in menu.DropDownItems)
+                item.Checked = _voiceService.IsCultureActive((string)item.Tag!);
+        };
+
+        return menu;
+    }
+
+    private void OnLanguageToggled(ToolStripMenuItem item)
+    {
+        var culture = (string)item.Tag!;
+        _voiceService.SetCultureEnabled(culture, item.Checked);
+
+        var state = item.Checked ? "enabled" : "disabled";
+        _trayIcon.ShowBalloonTip(2000, "Windows Assistant",
+            $"{PrettyCultureName(culture)} {state}", ToolTipIcon.Info);
     }
 
     private ToolStripMenuItem BuildSpeedMenu()
@@ -153,6 +248,7 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         _monitorService.RefreshMonitors();
         int count = _monitorService.Count;
         _trayIcon.Text = $"Windows Assistant — {count} monitor{(count != 1 ? "s" : "")} detected";
+        RefreshStatus();
     }
 
     // -------------------------------------------------------------------------
