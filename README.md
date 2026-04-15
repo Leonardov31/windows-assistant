@@ -4,8 +4,9 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 
 ## Features
 
-- **Voice-controlled brightness** — say "Hey Windows, first 5" to set monitor 1 to 50%
+- **Voice-controlled brightness** — say "Computador, first 5" to set monitor 1 to 50%
 - **Monitor power control** — turn individual monitors on/off (DPMS standby) by voice
+- **Two-phase wake/command flow** — the assistant waits for a wake phrase, chimes to confirm, then listens for a short command (≤ 6 words, 5 second window). Unrelated speech is discarded silently (no console spam, no voice.log noise).
 - **Bilingual** — switch between English and Portuguese (Brazil) from the tray menu
 - **Windows native speech** — uses `Windows.Media.SpeechRecognition` (OneCore). No model download, no extra disk; requires the corresponding Windows speech language pack to be installed.
 - **DDC/CI** — works with any external monitor that supports the DDC/CI protocol

@@ -27,11 +27,18 @@ Windows-only system tray app (.NET 10 / WinForms) that listens for voice command
 
 ### Voice recognition
 
-`VoiceListenerService` uses the built-in `Windows.Media.SpeechRecognition` API (WinRT / OneCore). One `SpeechRecognizer` is active at a time — the one for `AppSettings.ActiveCulture`. Recognition runs via a `ContinuousRecognitionSession` configured with a `SpeechRecognitionTopicConstraint(Dictation, "command")`, so any utterance gets transcribed; the service then enforces the wake-phrase prefix + `MinConfidence = 0.5f` threshold in code.
+`VoiceListenerService` uses the built-in `Windows.Media.SpeechRecognition` API (WinRT / OneCore). One `SpeechRecognizer` is active at a time — the one for `AppSettings.ActiveCulture`. Recognition runs via a `ContinuousRecognitionSession` configured with a `SpeechRecognitionTopicConstraint(Dictation, "command")`, so any utterance gets transcribed; a small phase state machine filters the results.
 
-The wake phrase is user-defined (`AppSettings.WakePhrase`, default `computador`) and dictation grammar does not need to be rebuilt when it changes. Switching languages disposes the current recognizer and constructs a new one via `SetActiveCulture(name)`.
+**Two-phase flow:**
 
-If the Windows speech language pack for `ActiveCulture` isn't installed, the engine is skipped with an `EngineStatus` message pointing the user at Settings → Time & language → Language. Microphone permission denied yields a similar message. Recoverable session failures (`TimeoutExceeded`, `AudioQualityFailure`) auto-restart after 500 ms.
+1. `Phase.AwaitingWake` — every utterance is scanned for the wake phrase (anywhere in the text, not just the start). If absent, the utterance is dropped silently and nothing is written to either sink. If present, `ChimeService.PlayWakeChime()` plays the Windows `Asterisk` system sound, anything before the wake phrase is discarded, and everything after is treated as a candidate command. If there's trailing text it's tried immediately (single-breath "computador brilho cinco"); otherwise the service transitions to `AwaitingCommand`.
+2. `Phase.AwaitingCommand` — the next utterance is the command candidate. Rejected if longer than `MaxCommandWords` (6). Otherwise `CommandVocabulary.NormalizeNumbers` runs and handlers are tried in order. Either way the service returns to `AwaitingWake`. A 5-second `CancellationTokenSource`-driven timeout also reverts to `AwaitingWake` if no command arrives.
+
+`HypothesisGenerated` has a phase-aware early-abort latch: during `AwaitingWake` it cancels the session as soon as the partial hypothesis is clearly not the wake phrase (via `CanStillMatchWakePhrase`). Disabled during `AwaitingCommand` so the full command utterance can resolve.
+
+The wake phrase is user-defined (`AppSettings.WakePhrase`, default `computador`). Confidence threshold is a fixed `MinConfidence = 0.5f`. Switching languages disposes the current recognizer and rebuilds via `SetActiveCulture(name)`.
+
+If the Windows speech language pack for `ActiveCulture` isn't installed, the engine is skipped with an `EngineStatus` message pointing at Settings → Time & language → Language. Microphone permission denied yields a similar message. Session completions (including the periodic `UserCanceled` that Windows emits on unpackaged dictation) auto-restart by rebuilding the recognizer after 500 ms.
 
 ### Audio pipeline
 
@@ -65,5 +72,7 @@ The OS owns audio capture — no NAudio, no manual mic enumeration. `SpeechRecog
 - Brightness values 0–10 map to 0%–100% (×10); values 11–100 are direct percentages.
 - Monitor power uses VCP code 0xD6 via `SetVCPFeature` (1 = on, 4 = standby).
 - Crash logs are written to `%LOCALAPPDATA%/WindowsAssistant/crash.log`.
-- Voice logging is split: **every** transcription (including dropped ones) streams to the terminal (Console + Trace); only wake-phrase-matched utterances are appended to `%LOCALAPPDATA%/WindowsAssistant/voice.log`.
+- Voice logging follows the two-phase rule: **nothing** is logged (terminal or file) for utterances that never had the wake phrase. Once the wake phrase is detected, every subsequent line — the detection itself, command outcomes, handler failures, word-limit drops, command timeouts — is written to both the terminal (Console + Trace) and `%LOCALAPPDATA%/WindowsAssistant/voice.log` via `LogWakeMatch`. `LogAlways` is reserved for engine lifecycle (startup config, `Loaded: culture`, session restarts).
 - Minimum confidence threshold is the fixed `VoiceListenerService.MinConfidence = 0.5f` (the `SpeechRecognitionResult.RawConfidence` float).
+- Command cap: `VoiceListenerService.MaxCommandWords = 6`. Command timeout: 5 s (`CommandPhaseTimeout`). Both documented inline in `VoiceListenerService`.
+- Wake-detect chime: `Infrastructure/ChimeService.PlayWakeChime()` wraps `System.Media.SystemSounds.Asterisk.Play()`. Respects user's Windows sound scheme; no WAV resources to ship.

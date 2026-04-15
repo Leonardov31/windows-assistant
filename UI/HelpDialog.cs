@@ -20,8 +20,14 @@ internal sealed class HelpDialog : Form
             Speech recognition uses Windows' built-in engine
             (Windows.Media.SpeechRecognition). Make sure the language pack
             for the selected language is installed under Settings →
-            Time & language → Language. Every utterance must start with
-            a wake phrase, followed by the command, all in one breath.
+            Time & language → Language.
+
+            Two-phase flow:
+              1. Say the wake phrase. A chime confirms it was heard and
+                 anything you said before it is discarded.
+              2. Within 5 seconds, say the command (up to 6 words). You
+                 can also say wake phrase + command in one breath.
+
             Numbers are spoken as words (cinco, fifty) — not digits.
             """),
 
@@ -138,7 +144,12 @@ internal sealed class HelpDialog : Form
             """),
 
         ("Tips", """
-            •  Speak wake phrase + command as ONE utterance, no pause.
+            •  You can say wake phrase + command in one breath, or wake
+               first, wait for the chime, then speak the command.
+            •  Commands are capped at 6 words after the wake phrase.
+            •  If no command arrives within 5 seconds after the wake
+               chime, the assistant quietly goes back to listening for
+               the wake phrase.
             •  Do NOT use articles ("o", "a") with the older verbs. Say
                "apaga primeiro" — not "apaga o primeiro". Natural-language
                verbs (ajusta, acorda, adormecer) do accept an article.
@@ -146,10 +157,9 @@ internal sealed class HelpDialog : Form
                stops until it is woken manually.
             •  Monitors must support DDC/CI. External panels usually do; laptop
                built-in screens rarely do.
-            •  Launch WindowsAssistant.exe from a terminal to see every
-               transcription live (including dropped ones). The file log
-               at %LOCALAPPDATA%\\WindowsAssistant\\voice.log only records
-               utterances that started with the wake phrase.
+            •  Both the terminal and %LOCALAPPDATA%\\WindowsAssistant\\voice.log
+               stay silent until the wake phrase is detected — unrelated
+               speech is discarded without a trace.
             """),
     };
 
