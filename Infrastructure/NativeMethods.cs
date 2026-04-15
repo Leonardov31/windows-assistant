@@ -84,6 +84,7 @@ internal static class NativeMethods
     // -------------------------------------------------------------------------
 
     internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    internal const int DWMWA_USE_IMMERSIVE_DARK_MODE   = 20;
 
     internal enum DwmWindowCornerPreference
     {
