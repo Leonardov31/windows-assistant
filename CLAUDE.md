@@ -27,38 +27,30 @@ Windows-only system tray app (.NET 10 / WinForms) that listens for voice command
 
 ### Multi-language voice recognition
 
-`VoiceListenerService` uses offline [Vosk](https://alphacephei.com/vosk/) speech recognition. It creates one `Vosk.Model` + `Vosk.VoskRecognizer` per culture (en-US, pt-BR), each with its own JSON grammar (flat word list including wake-phrase tokens plus each handler's vocabulary).
-
-Wake phrases (can be extended in `VoiceListenerService.WakePhrases`):
+`VoiceListenerService` creates one `SpeechRecognitionEngine` per culture (en-US, pt-BR). Each engine runs in parallel with its own wake phrase:
 - en-US: "hey windows"
-- pt-BR: "ei windows" / "oi windows" / "olá windows"
+- pt-BR: "ei windows"
 
-If a Vosk model isn't present on disk, that culture is silently skipped.
-
-### Audio pipeline
-
-`AudioCaptureService` wraps `NAudio.Wave.WaveInEvent` at **16 kHz / 16-bit / mono** — Vosk's required format. A single capture is fanned out to every recognizer; whichever transcribes above the confidence threshold wins. Utterances that don't start with a wake phrase are dropped.
+If a language pack isn't installed, that engine is silently skipped.
 
 ### Service wiring
 
 `TrayApplication` (in `UI/`) owns the lifecycle. Its constructor:
-1. Runs `VoskModelSetupService.EnsureModelsAvailable()` — downloads missing Vosk models from alphacephei.com into `%LOCALAPPDATA%/WindowsAssistant/Models/{culture}/`. No admin / UAC elevation needed.
+1. Runs `LanguageSetupService.CheckAndPromptInstall()` — checks for missing speech language packs and prompts installation
 2. Creates `MonitorControlService` — enumerates physical monitors, exposes DDC/CI brightness get/set via P/Invoke to `dxva2.dll`
 3. Builds a list of `ICommandHandler` implementations (`BrightnessCommandHandler`, `MonitorPowerCommandHandler`) — both use `CommandVocabulary` for shared parsing
-4. Creates `VoiceListenerService` — builds one Vosk recognizer per culture from handlers' `SupportedCultures` and their `BuildVocabulary(culture)` output
+4. Creates `VoiceListenerService` — creates one engine per culture from handlers' `SupportedCultures`
 
-### Vosk model setup
+### Language dependency check
 
-`VoskModelSetupService` (in `Services/`) checks for required models under `%LOCALAPPDATA%/WindowsAssistant/Models/{culture}/{folder}/`. If missing, it prompts the user, downloads the official `vosk-model-small-*` ZIPs and extracts them in-place. A directory is considered valid only if it contains the `am/`, `graph/`, and `conf/` subfolders.
-
-Upgrading a model: drop a different Vosk model folder under the same `{culture}/` directory and restart the app. The service picks the first folder whose name is declared in `RequiredModels`.
+`LanguageSetupService` (in `Services/`) checks which speech recognition cultures are installed via `SpeechRecognitionEngine.InstalledRecognizers()`. If any required culture (en-US, pt-BR) is missing, it shows a prompt and runs `Add-WindowsCapability` via elevated PowerShell to install the language pack.
 
 ### Adding a new voice command
 
 1. Create a class implementing `ICommandHandler` in `Commands/`
 2. Declare `SupportedCultures` (e.g. `[new("en-US"), new("pt-BR")]`)
-3. `BuildVocabulary(CultureInfo culture)` returns the flat list of words this handler accepts for that culture (without the wake phrase) — reuse helpers in `CommandVocabulary`
-4. `TryHandle(RecognitionOutput output)` parses `output.Text` with regex and executes the action, returning `CommandResult` or `null`
+3. `BuildGrammar(CultureInfo culture)` returns the grammar fragment per language (without wake phrase)
+4. `TryHandle()` parses `RecognitionResult.Text` and executes the action, returning `CommandResult` or `null`
 5. Register it in `TrayApplication.BuildHandlers()`
 6. Update the help text in `UI/HelpDialog.cs`
 7. Update `README.md` with the new command examples
@@ -72,5 +64,4 @@ Upgrading a model: drop a different Vosk model folder under the same `{culture}/
 - Brightness values 0–10 map to 0%–100% (×10); values 11–100 are direct percentages
 - Monitor power uses VCP code 0xD6 via `SetVCPFeature` (1 = on, 4 = standby)
 - Crash logs are written to `%LOCALAPPDATA%/WindowsAssistant/crash.log`
-- Voice recognition events (including culture, text, confidence) are logged to `%LOCALAPPDATA%/WindowsAssistant/voice.log`
-- Speech speed auto-adapts the minimum confidence threshold based on a rolling average of words-per-second (no timeout tuning — Vosk's VAD is internal)
+- Speech speed auto-adapts based on rolling average of words-per-second
