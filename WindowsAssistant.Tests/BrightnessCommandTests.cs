@@ -168,6 +168,8 @@ public class BrightnessCommandTests
     [InlineData("hey windows monitor 3 0", 3, 0)]
     [InlineData("hey windows monitor 4 50", 4, 50)]
     [InlineData("ei windows monitor 1 70", 1, 70)]
+    [InlineData("hey windows monitor 1 2", 1, 2)]
+    [InlineData("hey windows monitor 2 5", 2, 5)]
     public void ShortForm_MatchesPattern(string text, int expectedMonitor, int expectedValue)
     {
         var match = ShortPattern.Match(text);
@@ -190,17 +192,28 @@ public class BrightnessCommandTests
     }
 
     // -------------------------------------------------------------------------
-    // Short form direct percentage mapping (no ×10)
+    // Short form value mapping (1-10 → ×10, otherwise direct)
     // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(1, 10u)]
+    [InlineData(2, 20u)]
+    [InlineData(5, 50u)]
+    [InlineData(10, 100u)]
+    public void ShortForm_LevelValues_MultipliedByTen(int value, uint expectedBrightness)
+    {
+        uint brightness = (uint)Math.Clamp(value is >= 1 and <= 10 ? value * 10 : value, 0, 100);
+        Assert.Equal(expectedBrightness, brightness);
+    }
 
     [Theory]
     [InlineData(0, 0u)]
     [InlineData(20, 20u)]
     [InlineData(50, 50u)]
     [InlineData(100, 100u)]
-    public void ShortForm_DirectPercentageMapping(int value, uint expectedBrightness)
+    public void ShortForm_DirectPercentageValues_PassThrough(int value, uint expectedBrightness)
     {
-        uint brightness = (uint)Math.Clamp(value, 0, 100);
+        uint brightness = (uint)Math.Clamp(value is >= 1 and <= 10 ? value * 10 : value, 0, 100);
         Assert.Equal(expectedBrightness, brightness);
     }
 
@@ -213,7 +226,7 @@ public class BrightnessCommandTests
     [InlineData(200, 100u)]
     public void ShortForm_ClampsAbove100(int value, uint expectedBrightness)
     {
-        uint brightness = (uint)Math.Clamp(value, 0, 100);
+        uint brightness = (uint)Math.Clamp(value is >= 1 and <= 10 ? value * 10 : value, 0, 100);
         Assert.Equal(expectedBrightness, brightness);
     }
 

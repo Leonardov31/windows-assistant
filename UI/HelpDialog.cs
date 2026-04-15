@@ -28,10 +28,14 @@ internal sealed class HelpDialog : Form
           "Hey Windows, brightness 7 on monitor 2"
           "Ei Windows, brilho 5 no monitor 1"
 
-        Short form (direct percentage):
+        Short form (level 1–10 or percentage):
+          "Hey Windows, monitor 1 2"    → 20%
           "Hey Windows, monitor 1 20"   → 20%
           "Hey Windows, monitor 2 100"  → 100%
-          "Ei Windows, monitor 1 50"    → 50%
+          "Ei Windows, monitor 1 5"     → 50%
+
+        Values 1–10 are treated as levels (×10).
+        Values 0 or above 10 are direct percentages.
 
 
         MONITOR POWER (ON / OFF)

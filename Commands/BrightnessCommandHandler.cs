@@ -12,8 +12,9 @@ namespace WindowsAssistant.Commands;
 ///   en-US: "brightness [1-10] in/on monitor [1-4]"
 ///   pt-BR: "brilho [1-10] no/do monitor [1-4]"
 ///
-/// Short form (direct percentage 0–100):
-///   "monitor [1-4] [0-100]"
+/// Short form (level 1–10 → ×10, or direct percentage 0/20–100):
+///   "monitor [1-4] [1-10]"   — level: "monitor 1 2" = 20%
+///   "monitor [1-4] [0-100]"  — direct: "monitor 1 50" = 50%
 /// </summary>
 public sealed class BrightnessCommandHandler : ICommandHandler
 {
@@ -66,12 +67,14 @@ public sealed class BrightnessCommandHandler : ICommandHandler
             fullBuilder.Append(monitors);
         }
 
-        // Short form grammar: "monitor 1 20" (multiples of 10 for speech clarity)
-        var percentages = new Choices("0", "10", "20", "30", "40", "50", "60", "70", "80", "90", "100");
+        // Short form grammar: "monitor 1 20" or "monitor 1 2" (level 2 = 20%)
+        var shortValues = new Choices(
+            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+            "20", "30", "40", "50", "60", "70", "80", "90", "100");
         var shortBuilder = new GrammarBuilder();
         shortBuilder.Append("monitor");
         shortBuilder.Append(monitors);
-        shortBuilder.Append(percentages);
+        shortBuilder.Append(shortValues);
 
         return new Choices(fullBuilder, shortBuilder);
     }
@@ -89,12 +92,13 @@ public sealed class BrightnessCommandHandler : ICommandHandler
             return Execute(monitorIndex, brightness);
         }
 
-        // Try short form: "monitor 1 20"
+        // Try short form: "monitor 1 20" or "monitor 1 2" (level 1-10 → ×10)
         var shortMatch = ShortPattern.Match(result.Text);
         if (shortMatch.Success)
         {
             int monitorIndex = int.Parse(shortMatch.Groups[1].Value) - 1;
-            uint brightness  = (uint)Math.Clamp(int.Parse(shortMatch.Groups[2].Value), 0, 100);
+            int value        = int.Parse(shortMatch.Groups[2].Value);
+            uint brightness  = (uint)Math.Clamp(value is >= 1 and <= 10 ? value * 10 : value, 0, 100);
 
             return Execute(monitorIndex, brightness);
         }

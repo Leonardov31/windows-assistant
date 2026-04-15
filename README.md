@@ -19,12 +19,13 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 
 | Language | Example | Effect |
 |---|---|---|
+| Any | "Hey Windows, monitor 1 2" | Monitor 1 → 20% |
 | Any | "Hey Windows, monitor 1 20" | Monitor 1 → 20% |
 | Any | "Hey Windows, monitor 2 100" | Monitor 2 → 100% |
 | English | "Hey Windows, brightness 3 in monitor 1" | Monitor 1 → 30% |
 | Português | "Ei Windows, brilho 5 no monitor 1" | Monitor 1 → 50% |
 
-Short form: "monitor N value" — direct percentage (0–100).
+Short form: "monitor N value" — values 1–10 are levels (×10), 0 or above 10 are direct percentage.
 Full form: "brightness/brilho N in/no monitor M" — scale 1–10 maps to 10%–100%.
 
 ### Monitor Power
