@@ -24,8 +24,20 @@ public sealed class VoiceListenerService : IDisposable
 
     private static readonly Dictionary<string, string[]> WakePhrases = new()
     {
-        ["en-US"] = ["hey windows"],
-        ["pt-BR"] = ["ei windows", "oi windows", "olá windows", "ola windows"],
+        ["en-US"] = ["hey windows", "hey computer"],
+        // "windows" is missing from vosk-model-small-pt-0.3's pronunciation
+        // dictionary (foreign word), which caused the decoder to either emit
+        // [unk] or split the utterance at that token. Using Portuguese words
+        // that are guaranteed to be in the lexicon gives reliable wake-phrase
+        // recognition on small pt-BR models.
+        ["pt-BR"] = ["ei computador", "oi computador", "olá computador", "ola computador"],
+    };
+
+    // Cultures that should actually be loaded right now. Keeping en-US off
+    // until the pt-BR path is well-tuned; flip the flag when ready.
+    private static readonly HashSet<string> EnabledCultures = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "pt-BR",
     };
 
     private sealed class RecognizerEntry : IDisposable
@@ -123,6 +135,12 @@ public sealed class VoiceListenerService : IDisposable
 
     private void TryCreateEngine(CultureInfo culture)
     {
+        if (!EnabledCultures.Contains(culture.Name))
+        {
+            EngineStatus?.Invoke(this, $"Skipped: {culture.Name} (disabled)");
+            return;
+        }
+
         var modelPath = VoskModelSetupService.GetModelPath(culture.Name);
         if (modelPath is null)
         {
