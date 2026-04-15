@@ -93,14 +93,20 @@ public static class VoskModelSetupService
     }
 
     /// <summary>
-    /// A Vosk model directory must contain the 'am', 'graph' and 'conf' subfolders.
+    /// A Vosk model directory must contain the <c>ivector</c> subfolder
+    /// (present in every officially released model) plus the acoustic model
+    /// file. Newer models nest it under <c>am/final.mdl</c>; older small
+    /// models (e.g. vosk-model-small-pt-0.3) place <c>final.mdl</c> at the
+    /// root alongside <c>HCLr.fst</c> / <c>Gr.fst</c>.
     /// </summary>
     private static bool IsValidVoskModel(string modelPath)
     {
         if (!Directory.Exists(modelPath)) return false;
-        return Directory.Exists(Path.Combine(modelPath, "am"))
-            && Directory.Exists(Path.Combine(modelPath, "graph"))
-            && Directory.Exists(Path.Combine(modelPath, "conf"));
+        if (!Directory.Exists(Path.Combine(modelPath, "ivector"))) return false;
+
+        bool hasNestedAM = File.Exists(Path.Combine(modelPath, "am", "final.mdl"));
+        bool hasFlatAM   = File.Exists(Path.Combine(modelPath, "final.mdl"));
+        return hasNestedAM || hasFlatAM;
     }
 
     /// <summary>
