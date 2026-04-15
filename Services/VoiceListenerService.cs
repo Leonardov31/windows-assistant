@@ -156,8 +156,11 @@ public sealed class VoiceListenerService : IDisposable
     {
         var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Wake phrase words: individual tokens from each wake phrase
-        foreach (var phrase in WakePhrases.GetValueOrDefault(culture.Name, ["hey windows"]))
+        // Wake phrase tokens from EVERY culture go into EVERY recognizer's grammar.
+        // Users often mix "hey windows" with a pt-BR command (or vice-versa); if
+        // only culture-specific tokens are allowed the recognizer can't transcribe
+        // the wake phrase and the whole utterance is lost.
+        foreach (var phrase in WakePhrases.Values.SelectMany(v => v))
             foreach (var token in phrase.Split(' ', StringSplitOptions.RemoveEmptyEntries))
                 words.Add(token);
 
@@ -243,19 +246,25 @@ public sealed class VoiceListenerService : IDisposable
 
     private void HandleFinalResult(CultureInfo culture, string json)
     {
-        if (!TryParseResult(json, out var text, out var confidence, out var durationSeconds))
+        if (!TryParseResult(json, out var rawText, out var confidence, out var durationSeconds))
             return;
 
-        if (string.IsNullOrWhiteSpace(text))
+        if (string.IsNullOrWhiteSpace(rawText))
             return;
 
-        int wordCount = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        int wordCount = rawText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
         AdaptSpeed(durationSeconds, wordCount);
+
+        // Vosk emits number words (cinco, five, cinquenta, ...) — the regex
+        // parsers in the handlers expect digits. Normalize before matching.
+        var text = CommandVocabulary.NormalizeNumbers(rawText, culture);
 
         // Diagnostic logging: every final recognition is logged, with the reason
         // it was kept or dropped. Essential for tuning vocabulary, wake phrases,
         // and confidence thresholds when users report "I spoke but nothing happened".
-        string prefix = $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" ({confidence:P0})";
+        string prefix = text == rawText
+            ? $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" ({confidence:P0})"
+            : $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" (raw: \"{rawText}\") ({confidence:P0})";
 
         if (confidence < _minConfidence)
         {

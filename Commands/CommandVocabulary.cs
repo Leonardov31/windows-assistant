@@ -128,12 +128,58 @@ public static class CommandVocabulary
         };
     }
 
-    /// <summary>Flat list of numeric words (monitor numbers + brightness values).</summary>
-    public static string[] NumericWords() =>
-    [
-        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
-        "20", "30", "40", "50", "60", "70", "80", "90", "100",
-    ];
+    /// <summary>
+    /// Word-to-digit map used in the Vosk grammar. Vosk emits tokens from the
+    /// model's pronunciation dictionary, which contains spelled-out numbers
+    /// but NOT digit characters — adding "5" to the grammar would make it
+    /// impossible to ever emit. After transcription we map these back to
+    /// digit strings so the existing regex-based parsers (\d+) keep working.
+    /// </summary>
+    public static readonly Dictionary<string, string> NumberWordsEnUs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["zero"] = "0", ["one"] = "1", ["two"] = "2", ["three"] = "3", ["four"] = "4",
+        ["five"] = "5", ["six"] = "6", ["seven"] = "7", ["eight"] = "8", ["nine"] = "9",
+        ["ten"] = "10",
+        ["twenty"] = "20", ["thirty"] = "30", ["forty"] = "40", ["fifty"] = "50",
+        ["sixty"]  = "60", ["seventy"] = "70", ["eighty"] = "80", ["ninety"] = "90",
+        ["hundred"] = "100",
+    };
+
+    public static readonly Dictionary<string, string> NumberWordsPtBr = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["zero"] = "0", ["um"] = "1", ["uma"] = "1",
+        ["dois"] = "2", ["duas"] = "2",
+        ["três"] = "3", ["tres"] = "3",
+        ["quatro"] = "4", ["cinco"] = "5", ["seis"] = "6", ["sete"] = "7",
+        ["oito"] = "8", ["nove"] = "9", ["dez"] = "10",
+        ["vinte"] = "20", ["trinta"] = "30", ["quarenta"] = "40",
+        ["cinquenta"] = "50", ["cinqüenta"] = "50",
+        ["sessenta"] = "60", ["setenta"] = "70",
+        ["oitenta"] = "80", ["noventa"] = "90", ["cem"] = "100",
+    };
+
+    /// <summary>Number words emitted by the Vosk grammar for a given culture.</summary>
+    public static string[] NumericWords(CultureInfo culture) =>
+        culture.Name == "pt-BR"
+            ? NumberWordsPtBr.Keys.ToArray()
+            : NumberWordsEnUs.Keys.ToArray();
+
+    /// <summary>
+    /// Converts any number words present in <paramref name="text"/> to their
+    /// digit equivalents ("brilho cinco no primeiro" → "brilho 5 no primeiro").
+    /// Leaves unknown tokens untouched.
+    /// </summary>
+    public static string NormalizeNumbers(string text, CultureInfo culture)
+    {
+        var map = culture.Name == "pt-BR" ? NumberWordsPtBr : NumberWordsEnUs;
+        var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < tokens.Length; i++)
+        {
+            if (map.TryGetValue(tokens[i], out var digit))
+                tokens[i] = digit;
+        }
+        return string.Join(' ', tokens);
+    }
 
     // -------------------------------------------------------------------------
     // Target resolution — resolves recognized text to a monitor index

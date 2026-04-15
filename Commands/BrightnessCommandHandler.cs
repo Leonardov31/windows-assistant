@@ -58,7 +58,7 @@ public sealed class BrightnessCommandHandler : ICommandHandler
         var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "monitor" };
 
         foreach (var o in CommandVocabulary.OrdinalWordList(culture)) words.Add(o);
-        foreach (var n in CommandVocabulary.NumericWords())            words.Add(n);
+        foreach (var n in CommandVocabulary.NumericWords(culture))    words.Add(n);
 
         var cultureWords = culture.Name switch
         {
