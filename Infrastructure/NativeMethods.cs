@@ -78,4 +78,25 @@ internal static class NativeMethods
     internal const byte VcpDisplayPower = 0xD6;
     internal const uint DpmsOn          = 1;   // D0: fully on
     internal const uint DpmsStandby     = 4;   // D1: standby
+
+    // -------------------------------------------------------------------------
+    // DWM — Windows 11 rounded corners on popup windows
+    // -------------------------------------------------------------------------
+
+    internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+
+    internal enum DwmWindowCornerPreference
+    {
+        Default    = 0,
+        DoNotRound = 1,
+        Round      = 2,
+        RoundSmall = 3,
+    }
+
+    [DllImport("dwmapi.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+    internal static extern void DwmSetWindowAttribute(
+        IntPtr hwnd,
+        int attribute,
+        ref int valueRef,
+        int sizeOfValueRef);
 }
