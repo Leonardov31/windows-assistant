@@ -93,8 +93,15 @@ public sealed class VoiceListenerService : IDisposable
     public void Start()
     {
         if (_running) return;
+
         _audio.Start();
         _running = true;
+
+        var devices = AudioCaptureService.EnumerateDevices();
+        Log($"[{DateTime.Now:HH:mm:ss}] Cultures loaded: {string.Join(", ", ActiveCultures)}");
+        Log($"[{DateTime.Now:HH:mm:ss}] Input devices ({devices.Count}): {string.Join(" | ", devices)}");
+        Log($"[{DateTime.Now:HH:mm:ss}] Using device: {_audio.DeviceName}");
+        Log($"[{DateTime.Now:HH:mm:ss}] Min confidence: {_minConfidence:P0}");
     }
 
     public void Stop()
@@ -245,12 +252,22 @@ public sealed class VoiceListenerService : IDisposable
         int wordCount = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
         AdaptSpeed(durationSeconds, wordCount);
 
-        if (confidence < _minConfidence)
-            return;
+        // Diagnostic logging: every final recognition is logged, with the reason
+        // it was kept or dropped. Essential for tuning vocabulary, wake phrases,
+        // and confidence thresholds when users report "I spoke but nothing happened".
+        string prefix = $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" ({confidence:P0})";
 
-        // Must start with a wake phrase, otherwise drop
-        if (!StartsWithAnyWakePhrase(text))
+        if (confidence < _minConfidence)
+        {
+            Log($"{prefix} DROPPED: below threshold ({_minConfidence:P0})");
             return;
+        }
+
+        if (!StartsWithAnyWakePhrase(text))
+        {
+            Log($"{prefix} DROPPED: no wake phrase");
+            return;
+        }
 
         var output = new RecognitionOutput(text, confidence);
 
@@ -261,7 +278,7 @@ public sealed class VoiceListenerService : IDisposable
 
             var command = StripWakePhrase(output.Text);
             var outcome = result.Success ? result.Message : $"FAILED: {result.Message}";
-            Log($"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{command}\" ({output.Confidence:P0}) → [{handler.Name}] {outcome}");
+            Log($"{prefix} → [{handler.Name}] {outcome} (command: \"{command}\")");
 
             CommandExecuted?.Invoke(this, new CommandEventArgs(
                 HandlerName:    handler.Name,
@@ -270,6 +287,9 @@ public sealed class VoiceListenerService : IDisposable
                 Result:         result));
             return;
         }
+
+        // Wake phrase ok, confidence ok, but no handler matched the text pattern
+        Log($"{prefix} DROPPED: no handler matched (command: \"{StripWakePhrase(text)}\")");
     }
 
     /// <summary>

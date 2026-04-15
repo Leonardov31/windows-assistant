@@ -20,18 +20,47 @@ public sealed class AudioCaptureService : IDisposable
     /// <summary>Fired whenever a chunk of audio is available. Buffer is owned by the handler.</summary>
     public event EventHandler<byte[]>? DataAvailable;
 
+    /// <summary>Human-readable name of the currently selected input device (empty when not started).</summary>
+    public string DeviceName { get; private set; } = "";
+
+    /// <summary>Returns the list of available input devices for diagnostics.</summary>
+    public static IReadOnlyList<string> EnumerateDevices()
+    {
+        var list = new List<string>();
+        for (int i = 0; i < WaveInEvent.DeviceCount; i++)
+        {
+            try
+            {
+                list.Add($"[{i}] {WaveInEvent.GetCapabilities(i).ProductName}");
+            }
+            catch
+            {
+                list.Add($"[{i}] <unavailable>");
+            }
+        }
+        return list;
+    }
+
     /// <summary>
-    /// Starts capture from the default input device. No-op if already started.
+    /// Starts capture from device 0 (the first Windows-enumerated input device).
+    /// No-op if already started. Throws <see cref="InvalidOperationException"/>
+    /// when no input devices are present on the system.
     /// </summary>
     public void Start()
     {
         if (_waveIn is not null) return;
 
+        if (WaveInEvent.DeviceCount == 0)
+            throw new InvalidOperationException(
+                "No audio input devices found. Plug in a microphone and restart the app.");
+
         _waveIn = new WaveInEvent
         {
-            WaveFormat    = new WaveFormat(SampleRate, bits: 16, channels: 1),
+            DeviceNumber       = 0,
+            WaveFormat         = new WaveFormat(SampleRate, bits: 16, channels: 1),
             BufferMilliseconds = 100,
         };
+        DeviceName = WaveInEvent.GetCapabilities(0).ProductName;
         _waveIn.DataAvailable += OnDataAvailable;
         _waveIn.StartRecording();
     }
