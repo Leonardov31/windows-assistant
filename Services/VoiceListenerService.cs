@@ -124,15 +124,7 @@ public sealed class VoiceListenerService : IDisposable
         _running = false;
 
         CancelCommandTimeout();
-
-        RecognizerEntry? entry;
-        lock (_recognizersLock) entry = _engine;
-
-        if (entry is not null)
-        {
-            try { _ = entry.Recognizer.ContinuousRecognitionSession.CancelAsync(); }
-            catch { /* best effort */ }
-        }
+        CancelCurrentSession();
     }
 
     /// <summary>Switches the active culture, reloading the speech recognizer.</summary>
@@ -391,40 +383,73 @@ public sealed class VoiceListenerService : IDisposable
     /// Normalizes numbers, enforces the word cap, and runs the utterance
     /// through the registered handlers. Logs outcome (success, FAILED, or
     /// "no handler matched") to both sinks.
+    ///
+    /// Regardless of outcome, the current recognizer session is cancelled
+    /// on exit so the OS tears down and rebuilds the pipeline. This clears
+    /// any stale audio still being processed and lets the user chain a
+    /// second wake+command immediately without the previous utterance's
+    /// tail interfering.
     /// </summary>
     private void TryExecuteCommand(CultureInfo culture, string commandText, float confidence, string? prefixOverride = null)
     {
         string prefix = prefixOverride
             ?? $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] command \"{commandText}\" ({confidence:P0})";
 
-        if (!IsWithinWordLimit(commandText))
+        try
         {
-            LogWakeMatch($"{prefix} DROPPED: too many words (limit {MaxCommandWords})");
-            return;
+            if (!IsWithinWordLimit(commandText))
+            {
+                LogWakeMatch($"{prefix} DROPPED: too many words (limit {MaxCommandWords})");
+                return;
+            }
+
+            // Dictation sometimes emits number words (cinco, five, fifty) — the
+            // regex parsers expect digits.
+            var normalized = CommandVocabulary.NormalizeNumbers(commandText, culture);
+            var output = new RecognitionOutput(normalized, confidence);
+
+            foreach (var handler in _handlers)
+            {
+                var cmdResult = handler.TryHandle(output);
+                if (cmdResult is null) continue;
+
+                var outcome = cmdResult.Success ? cmdResult.Message : $"FAILED: {cmdResult.Message}";
+                LogWakeMatch($"{prefix} → [{handler.Name}] {outcome}");
+
+                CommandExecuted?.Invoke(this, new CommandEventArgs(
+                    HandlerName:    handler.Name,
+                    RecognizedText: output.Text,
+                    Confidence:     output.Confidence,
+                    Result:         cmdResult));
+                return;
+            }
+
+            LogWakeMatch($"{prefix} DROPPED: no handler matched");
         }
-
-        // Dictation sometimes emits number words (cinco, five, fifty) — the
-        // regex parsers expect digits.
-        var normalized = CommandVocabulary.NormalizeNumbers(commandText, culture);
-        var output = new RecognitionOutput(normalized, confidence);
-
-        foreach (var handler in _handlers)
+        finally
         {
-            var cmdResult = handler.TryHandle(output);
-            if (cmdResult is null) continue;
-
-            var outcome = cmdResult.Success ? cmdResult.Message : $"FAILED: {cmdResult.Message}";
-            LogWakeMatch($"{prefix} → [{handler.Name}] {outcome}");
-
-            CommandExecuted?.Invoke(this, new CommandEventArgs(
-                HandlerName:    handler.Name,
-                RecognizedText: output.Text,
-                Confidence:     output.Confidence,
-                Result:         cmdResult));
-            return;
+            // Force a fresh recognizer after every command attempt — see
+            // method doc. OnSessionCompleted picks up the cancellation and
+            // goes through RestartSessionAfterDelayAsync, which disposes
+            // the current entry and rebuilds in ~500 ms. LoadActiveEngineAsync
+            // resets _phase to AwaitingWake on the new recognizer.
+            CancelCurrentSession();
         }
+    }
 
-        LogWakeMatch($"{prefix} DROPPED: no handler matched");
+    /// <summary>
+    /// Fire-and-forget cancel of the current recognizer's continuous session.
+    /// The Completed event will fire with <c>UserCanceled</c> and the existing
+    /// restart-on-completion path rebuilds a fresh recognizer.
+    /// </summary>
+    private void CancelCurrentSession()
+    {
+        RecognizerEntry? entry;
+        lock (_recognizersLock) entry = _engine;
+        if (entry is null) return;
+
+        try { _ = entry.Recognizer.ContinuousRecognitionSession.CancelAsync(); }
+        catch { /* best effort — session may already be tearing down */ }
     }
 
     private void EnterCommandPhase()
