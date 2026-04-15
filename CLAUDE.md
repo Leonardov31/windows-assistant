@@ -38,7 +38,7 @@ If a language pack isn't installed, that engine is silently skipped.
 `TrayApplication` (in `UI/`) owns the lifecycle. Its constructor:
 1. Runs `LanguageSetupService.CheckAndPromptInstall()` — checks for missing speech language packs and prompts installation
 2. Creates `MonitorControlService` — enumerates physical monitors, exposes DDC/CI brightness get/set via P/Invoke to `dxva2.dll`
-3. Builds a list of `ICommandHandler` implementations (`BrightnessCommandHandler`, `MonitorPowerCommandHandler`)
+3. Builds a list of `ICommandHandler` implementations (`BrightnessCommandHandler`, `MonitorPowerCommandHandler`) — both use `CommandVocabulary` for shared parsing
 4. Creates `VoiceListenerService` — creates one engine per culture from handlers' `SupportedCultures`
 
 ### Language dependency check
@@ -60,7 +60,8 @@ If a language pack isn't installed, that engine is silently skipped.
 - `NativeMethods` (in `Infrastructure/`) centralizes all P/Invoke declarations — add new Win32 interop there
 - Wake phrases per culture are defined in `VoiceListenerService.WakePhrases`
 - Monitor indices are 1-based in voice commands, 0-based internally
-- Brightness scale in voice: 1–10 maps to 10%–100% (level × 10)
+- `CommandVocabulary` (in `Commands/`) centralizes all language words, ordinals, power states, and parsing — edit here to add new words or languages
+- Brightness values 0–10 map to 0%–100% (×10); values 11–100 are direct percentages
 - Monitor power uses VCP code 0xD6 via `SetVCPFeature` (1 = on, 4 = standby)
 - Crash logs are written to `%LOCALAPPDATA%/WindowsAssistant/crash.log`
 - Speech speed auto-adapts based on rolling average of words-per-second

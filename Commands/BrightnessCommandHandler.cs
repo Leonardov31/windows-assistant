@@ -6,29 +6,43 @@ using WindowsAssistant.Services;
 namespace WindowsAssistant.Commands;
 
 /// <summary>
-/// Handles voice commands that change monitor brightness via DDC/CI.
+/// Handles all brightness voice commands via DDC/CI.
 ///
-/// Full form (level 1–10 → 10%–100%):
-///   en-US: "brightness [1-10] in/on monitor [1-4]"
-///   pt-BR: "brilho [1-10] no/do monitor [1-4]"
+/// Short form:     {monitor} {value}                — "first 5", "monitor 1 50", "both 3"
+/// Long form 1:    {brightness} {value} {prep} {monitor} — "brightness 5 on monitor 1"
+/// Long form 2:    {monitor} {brightness} {value}   — "monitor 1 brightness 5"
 ///
-/// Short form (level 1–10 → ×10, or direct percentage 0/20–100):
-///   "monitor [1-4] [1-10]"   — level: "monitor 1 2" = 20%
-///   "monitor [1-4] [0-100]"  — direct: "monitor 1 50" = 50%
+/// Values 0–10 are levels (×10). Values 11–100 are direct percentages.
 /// </summary>
 public sealed class BrightnessCommandHandler : ICommandHandler
 {
     private static readonly CultureInfo EnUs = new("en-US");
     private static readonly CultureInfo PtBr = new("pt-BR");
 
-    // Full form: "brightness 3 in monitor 1" / "brilho 3 no monitor 1"
-    internal static readonly Regex FullPattern = new(
-        @"(?:brightness|brilho)\s+(\d+)(?:\s+(?:in|on|no|do))?\s+monitor\s+(\d+)",
+    // Patterns built from CommandVocabulary
+    private static readonly string Target = CommandVocabulary.MonitorTargetPattern();
+    private static readonly string All = CommandVocabulary.AllTargetPattern();
+    private static readonly string BWord = CommandVocabulary.BrightnessWordPattern();
+    private static readonly string Prep = CommandVocabulary.PrepositionPattern();
+
+    // Short: "first 5", "monitor 1 50"
+    internal static readonly Regex ShortPattern = new(
+        $@"\b({Target})\s+(\d+)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    // Short form: "monitor 1 20"
-    internal static readonly Regex ShortPattern = new(
-        @"\bmonitor\s+(\d+)\s+(\d+)\b",
+    // All: "both 5", "todos 50"
+    internal static readonly Regex AllPattern = new(
+        $@"\b({All})\s+(\d+)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Long 1: "brightness 5 on monitor 1", "brilho 3 no primeiro"
+    internal static readonly Regex Long1Pattern = new(
+        $@"\b{BWord}\s+(\d+)\s+{Prep}\s+({Target})\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    // Long 2: "monitor 1 brightness 5", "primeiro brilho 3"
+    internal static readonly Regex Long2Pattern = new(
+        $@"\b({Target})\s+{BWord}\s+(\d+)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly MonitorControlService _monitorService;
@@ -42,76 +56,119 @@ public sealed class BrightnessCommandHandler : ICommandHandler
 
     public GrammarBuilder BuildGrammar(CultureInfo culture)
     {
-        // Full form grammar
-        var levels   = new Choices("1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
-        var monitors = new Choices("1", "2", "3", "4");
+        var monitors = CommandVocabulary.MonitorNumberChoices();
+        var ordinals = CommandVocabulary.OrdinalChoices(culture);
+        var allWords = CommandVocabulary.AllChoices(culture);
+        var values = CommandVocabulary.BrightnessValueChoices();
+        var bKeyword = CommandVocabulary.BrightnessKeywordChoices(culture);
+        var prep = CommandVocabulary.PrepositionChoices(culture);
 
-        var fullBuilder = new GrammarBuilder();
+        // Short: ordinal + value
+        var shortOrdinal = new GrammarBuilder();
+        shortOrdinal.Append(ordinals);
+        shortOrdinal.Append(values);
 
-        if (culture.Name == "pt-BR")
-        {
-            fullBuilder.Append("brilho");
-            fullBuilder.Append(levels);
-            fullBuilder.Append("no", 0, 1);
-            fullBuilder.Append("do", 0, 1);
-            fullBuilder.Append("monitor");
-            fullBuilder.Append(monitors);
-        }
-        else
-        {
-            fullBuilder.Append("brightness");
-            fullBuilder.Append(levels);
-            fullBuilder.Append("in", 0, 1);
-            fullBuilder.Append("on", 0, 1);
-            fullBuilder.Append("monitor");
-            fullBuilder.Append(monitors);
-        }
+        // Short: "monitor N" + value
+        var shortMonitor = new GrammarBuilder();
+        shortMonitor.Append("monitor");
+        shortMonitor.Append(monitors);
+        shortMonitor.Append(values);
 
-        // Short form grammar: "monitor 1 20" or "monitor 1 2" (level 2 = 20%)
-        var shortValues = new Choices(
-            "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
-            "20", "30", "40", "50", "60", "70", "80", "90", "100");
-        var shortBuilder = new GrammarBuilder();
-        shortBuilder.Append("monitor");
-        shortBuilder.Append(monitors);
-        shortBuilder.Append(shortValues);
+        // All: "both/todos" + value
+        var allBuilder = new GrammarBuilder();
+        allBuilder.Append(allWords);
+        allBuilder.Append(values);
 
-        return new Choices(fullBuilder, shortBuilder);
+        // Long 1: brightness + value + prep + monitor
+        var long1Monitor = new GrammarBuilder();
+        long1Monitor.Append(bKeyword);
+        long1Monitor.Append(values);
+        long1Monitor.Append(prep);
+        long1Monitor.Append("monitor");
+        long1Monitor.Append(monitors);
+
+        var long1Ordinal = new GrammarBuilder();
+        long1Ordinal.Append(bKeyword);
+        long1Ordinal.Append(values);
+        long1Ordinal.Append(prep);
+        long1Ordinal.Append(ordinals);
+
+        // Long 2: monitor + brightness + value
+        var long2Monitor = new GrammarBuilder();
+        long2Monitor.Append("monitor");
+        long2Monitor.Append(monitors);
+        long2Monitor.Append(bKeyword);
+        long2Monitor.Append(values);
+
+        var long2Ordinal = new GrammarBuilder();
+        long2Ordinal.Append(ordinals);
+        long2Ordinal.Append(bKeyword);
+        long2Ordinal.Append(values);
+
+        return new Choices(
+            shortOrdinal, shortMonitor, allBuilder,
+            long1Monitor, long1Ordinal,
+            long2Monitor, long2Ordinal);
     }
 
     public CommandResult? TryHandle(RecognitionResult result)
     {
-        // Try full form first: "brightness 3 in monitor 1"
-        var fullMatch = FullPattern.Match(result.Text);
-        if (fullMatch.Success)
+        // Long 1: "brightness 5 on monitor 1"
+        var match = Long1Pattern.Match(result.Text);
+        if (match.Success)
         {
-            int level        = int.Parse(fullMatch.Groups[1].Value);
-            int monitorIndex = int.Parse(fullMatch.Groups[2].Value) - 1;
-            uint brightness  = (uint)Math.Clamp(level * 10, 0, 100);
-
-            return Execute(monitorIndex, brightness);
+            uint brightness = CommandVocabulary.ParseBrightness(int.Parse(match.Groups[1].Value));
+            int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[2].Value);
+            if (index >= 0)
+                return ExecuteSingle(index, brightness);
         }
 
-        // Try short form: "monitor 1 20" or "monitor 1 2" (level 1-10 → ×10)
-        var shortMatch = ShortPattern.Match(result.Text);
-        if (shortMatch.Success)
+        // Long 2: "monitor 1 brightness 5"
+        match = Long2Pattern.Match(result.Text);
+        if (match.Success)
         {
-            int monitorIndex = int.Parse(shortMatch.Groups[1].Value) - 1;
-            int value        = int.Parse(shortMatch.Groups[2].Value);
-            uint brightness  = (uint)Math.Clamp(value is >= 1 and <= 10 ? value * 10 : value, 0, 100);
+            int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[1].Value);
+            uint brightness = CommandVocabulary.ParseBrightness(int.Parse(match.Groups[2].Value));
+            if (index >= 0)
+                return ExecuteSingle(index, brightness);
+        }
 
-            return Execute(monitorIndex, brightness);
+        // All: "both 5", "todos 50"
+        match = AllPattern.Match(result.Text);
+        if (match.Success)
+        {
+            uint brightness = CommandVocabulary.ParseBrightness(int.Parse(match.Groups[2].Value));
+            return ExecuteAll(brightness);
+        }
+
+        // Short: "first 5", "monitor 1 50"
+        match = ShortPattern.Match(result.Text);
+        if (match.Success)
+        {
+            int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[1].Value);
+            uint brightness = CommandVocabulary.ParseBrightness(int.Parse(match.Groups[2].Value));
+            if (index >= 0)
+                return ExecuteSingle(index, brightness);
         }
 
         return null;
     }
 
-    private CommandResult Execute(int monitorIndex, uint brightness)
+    private CommandResult ExecuteSingle(int monitorIndex, uint brightness)
     {
         bool ok = _monitorService.SetBrightness(monitorIndex, brightness);
-
         return ok
-            ? new CommandResult(true,  $"Monitor {monitorIndex + 1} → {brightness}%")
+            ? new CommandResult(true, $"Monitor {monitorIndex + 1} → {brightness}%")
             : new CommandResult(false, $"Could not set brightness on monitor {monitorIndex + 1}. Check DDC/CI support.");
+    }
+
+    private CommandResult ExecuteAll(uint brightness)
+    {
+        bool ok = _monitorService.SetAllBrightness(brightness);
+        return ok
+            ? new CommandResult(true, $"All monitors → {brightness}%")
+            : new CommandResult(false, _monitorService.Count == 0
+                ? "No DDC/CI monitors detected."
+                : "Could not set brightness on all monitors.");
     }
 }

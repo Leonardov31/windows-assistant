@@ -73,7 +73,6 @@ public class HelpDialogTests : IDisposable
     [InlineData("Ei Windows")]
     [InlineData("brightness")]
     [InlineData("brilho")]
-    [InlineData("QUICK COMMANDS")]
     [InlineData("first")]
     [InlineData("primeiro")]
     [InlineData("both")]
@@ -88,27 +87,16 @@ public class HelpDialogTests : IDisposable
     [InlineData("administrator")]
     [InlineData("MONITOR POWER")]
     [InlineData("turn off")]
-    [InlineData("turn on")]
     [InlineData("desligar")]
     [InlineData("ligar")]
+    [InlineData("ativar")]
+    [InlineData("desativar")]
+    [InlineData("Long form")]
+    [InlineData("Short form")]
     public void HelpContent_ContainsExpectedSection(string keyword)
     {
         var textBox = (TextBox)_dialog.Controls[0];
         Assert.Contains(keyword, textBox.Text, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void HelpContent_DocumentsEnglishExamples()
-    {
-        var textBox = (TextBox)_dialog.Controls[0];
-        Assert.Contains("brightness 3 in monitor 1", textBox.Text, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void HelpContent_DocumentsPortugueseExamples()
-    {
-        var textBox = (TextBox)_dialog.Controls[0];
-        Assert.Contains("brilho 5 no monitor 1", textBox.Text, StringComparison.OrdinalIgnoreCase);
     }
 
     public void Dispose() => _dialog.Dispose();

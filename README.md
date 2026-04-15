@@ -4,9 +4,9 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 
 ## Features
 
-- **Voice-controlled brightness** — say "Hey Windows, monitor 1 20" to set 20% brightness
-- **Monitor power control** — turn monitors on/off (DPMS standby) by voice
-- **Bilingual** — supports English and Portuguese commands simultaneously
+- **Voice-controlled brightness** — say "Hey Windows, first 5" to set monitor 1 to 50%
+- **Monitor power control** — turn individual monitors on/off (DPMS standby) by voice
+- **Bilingual** — supports English and Portuguese (Brazil) commands simultaneously
 - **Auto speech speed detection** — adapts to slow, normal, or fast speaking pace
 - **DDC/CI** — works with any external monitor that supports the DDC/CI protocol
 - **Startup with Windows** — optional, toggle via tray menu
@@ -15,43 +15,34 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 
 ## Voice Commands
 
-### Quick Commands
-
-The fastest way to control your monitors. Values 1–10 are levels (×10), 0 or above 10 are direct percentages.
+### Brightness
 
 | Example | Effect |
 |---|---|
-| "Hey Windows, first 2" | Monitor 1 → 20% |
-| "Hey Windows, second 50" | Monitor 2 → 50% |
-| "Ei Windows, primeiro 5" | Monitor 1 → 50% |
-| "Hey Windows, both 80" | All → 80% |
-| "Hey Windows, first off" | Monitor 1 → standby |
-| "Hey Windows, second on" | Monitor 2 → on |
-| "Ei Windows, primeiro desligar" | Monitor 1 → standby |
-| "Ei Windows, segundo ligar" | Monitor 2 → on |
+| "Hey Windows, first 5" | Monitor 1 → 50% |
+| "Hey Windows, monitor 1 50" | Monitor 1 → 50% |
+| "Hey Windows, both 3" | All → 30% |
+| "Ei Windows, primeiro 8" | Monitor 1 → 80% |
+| "Ei Windows, ambos 5" | All → 50% |
+| "Hey Windows, brightness 5 on monitor 1" | Monitor 1 → 50% |
+| "Ei Windows, brilho 3 no monitor 1" | Monitor 1 → 30% |
+| "Hey Windows, monitor 1 brightness 5" | Monitor 1 → 50% |
+| "Ei Windows, primeiro brilho 3" | Monitor 1 → 30% |
 
-Ordinals: first/primeiro, second/segundo, third/terceiro, fourth/quarto.
-All monitors: both/all, ambos/todos.
+Values 0–10 are levels (×10). Values 11–100 are direct percentages.
 
-### Brightness (alternative forms)
-
-| Example | Effect |
-|---|---|
-| "Hey Windows, monitor 1 2" | Monitor 1 → 20% |
-| "Hey Windows, monitor 1 20" | Monitor 1 → 20% |
-| "Hey Windows, brightness 3 in monitor 1" | Monitor 1 → 30% |
-| "Ei Windows, brilho 5 no monitor 1" | Monitor 1 → 50% |
-
-### Monitor Power (alternative forms)
+### Monitor Power
 
 | Example | Effect |
 |---|---|
 | "Hey Windows, turn off monitor 1" | Monitor 1 → standby |
-| "Hey Windows, turn on monitor 2" | Monitor 2 → on |
-| "Hey Windows, disable monitor 1" | Monitor 1 → standby |
-| "Hey Windows, enable monitor 2" | Monitor 2 → on |
+| "Hey Windows, first off" | Monitor 1 → standby |
+| "Hey Windows, enable second" | Monitor 2 → on |
 | "Ei Windows, desligar monitor 1" | Monitor 1 → standby |
-| "Ei Windows, ligar monitor 2" | Monitor 2 → on |
+| "Ei Windows, primeiro desativar" | Monitor 1 → standby |
+| "Ei Windows, ligar segundo" | Monitor 2 → on |
+
+Monitors: monitor 1–4, or ordinals (first/primeiro, second/segundo, third/terceiro, fourth/quarto).
 
 ## Requirements
 

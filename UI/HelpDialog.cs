@@ -19,53 +19,49 @@ internal sealed class HelpDialog : Form
           Português:  "Ei Windows"
 
 
-        QUICK COMMANDS
-        --------------
-        The fastest way to control your monitors.
-        Values 1–10 are levels (×10). 0 or above 10
-        are direct percentages.
+        BRIGHTNESS CONTROL
+        ------------------
+        Controls monitor brightness via DDC/CI.
+        Values 0–10 are levels (×10). Above 10 = direct %.
 
-          Brightness:
-            "Hey Windows, first 2"       → monitor 1 at 20%
-            "Hey Windows, second 50"     → monitor 2 at 50%
-            "Ei Windows, primeiro 5"     → monitor 1 at 50%
-            "Hey Windows, both 80"       → all at 80%
-            "Ei Windows, ambos 3"        → all at 30%
+        Short form:
+          "Hey Windows, first 5"             → monitor 1 at 50%
+          "Hey Windows, monitor 1 50"        → monitor 1 at 50%
+          "Hey Windows, both 3"              → all monitors at 30%
+          "Ei Windows, primeiro 8"           → monitor 1 at 80%
+          "Ei Windows, ambos 5"              → all monitors at 50%
 
-          Power (on/off):
-            "Hey Windows, first off"     → monitor 1 standby
-            "Hey Windows, second on"     → monitor 2 on
-            "Ei Windows, primeiro desligar" → standby
-            "Ei Windows, segundo ligar"  → monitor 2 on
+        Long form 1:
+          "Hey Windows, brightness 5 on monitor 1"
+          "Ei Windows, brilho 3 no monitor 1"
+          "Hey Windows, brightness 5 on first"
 
-        Ordinals: first/primeiro, second/segundo,
-        third/terceiro, fourth/quarto.
+        Long form 2:
+          "Hey Windows, monitor 1 brightness 5"
+          "Ei Windows, primeiro brilho 3"
+
+        Monitors: monitor 1–4, or ordinals:
+          first/primeiro, second/segundo,
+          third/terceiro, fourth/quarto.
         All: both/all, ambos/todos.
 
 
-        BRIGHTNESS (ALTERNATIVE FORMS)
-        ------------------------------
-        Short form:
-          "Hey Windows, monitor 1 2"    → 20%
-          "Hey Windows, monitor 1 20"   → 20%
-          "Ei Windows, monitor 1 5"     → 50%
+        MONITOR POWER (ON / OFF)
+        ------------------------
+        Puts a monitor into standby or wakes it.
+        Single monitor only.
 
-        Full form (scale 1–10 → 10%–100%):
-          "Hey Windows, brightness 3 in monitor 1"
-          "Ei Windows, brilho 5 no monitor 1"
+          "Hey Windows, turn off monitor 1"
+          "Hey Windows, enable first"
+          "Hey Windows, first off"
+          "Ei Windows, desligar monitor 1"
+          "Ei Windows, primeiro desativar"
+          "Ei Windows, ligar segundo"
 
-
-        MONITOR POWER (ALTERNATIVE FORMS)
-        ----------------------------------
-          English:
-            "Hey Windows, turn off monitor 1"
-            "Hey Windows, turn on monitor 2"
-            "Hey Windows, disable monitor 1"
-            "Hey Windows, enable monitor 2"
-
-          Português:
-            "Ei Windows, desligar monitor 1"
-            "Ei Windows, ligar monitor 2"
+        Power on:  on, enable, turn on,
+                   ligar, ativar
+        Power off: off, disable, turn off,
+                   desligar, desativar
 
         Note: to wake a monitor by voice, your
         microphone must not be on the sleeping monitor.

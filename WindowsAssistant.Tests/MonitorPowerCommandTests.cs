@@ -7,143 +7,120 @@ namespace WindowsAssistant.Tests;
 
 /// <summary>
 /// Tests for <see cref="MonitorPowerCommandHandler"/>:
-///   - Action regex matching (turn on/off, enable/disable, ligar/desligar)
-///   - Target regex matching (specific monitor only)
-///   - Monitor index parsing (1-based → 0-based)
-///   - Grammar building per culture
-///   - Handler metadata
+///   - Form 1: "{power} {monitor}" — "turn off monitor 1", "desligar primeiro"
+///   - Form 2: "{monitor} {power}" — "first off", "primeiro desligar"
+///   - All power words (on/enable/ligar/ativar, off/disable/desligar/desativar)
+///   - Grammar building, handler metadata
 /// </summary>
 public class MonitorPowerCommandTests
 {
-    private static readonly Regex ActionPattern = MonitorPowerCommandHandler.ActionPattern;
-    private static readonly Regex TargetPattern = MonitorPowerCommandHandler.TargetPattern;
+    private static readonly Regex PowerFirst = MonitorPowerCommandHandler.PowerFirstPattern;
+    private static readonly Regex TargetFirst = MonitorPowerCommandHandler.TargetFirstPattern;
 
-    // -------------------------------------------------------------------------
-    // English action matching
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // FORM 1: "{power} {monitor}"
+    // =========================================================================
 
     [Theory]
-    [InlineData("hey windows turn off monitor 1", "turn off")]
-    [InlineData("hey windows turn on monitor 2", "turn on")]
-    [InlineData("hey windows enable monitor 1", "enable")]
-    [InlineData("hey windows disable monitor 3", "disable")]
-    public void EnglishAction_MatchesCorrectly(string text, string expectedAction)
+    [InlineData("hey windows turn off monitor 1", "turn off", "monitor 1")]
+    [InlineData("hey windows turn on monitor 2", "turn on", "monitor 2")]
+    [InlineData("hey windows enable first", "enable", "first")]
+    [InlineData("hey windows disable second", "disable", "second")]
+    [InlineData("ei windows desligar monitor 1", "desligar", "monitor 1")]
+    [InlineData("ei windows ligar monitor 2", "ligar", "monitor 2")]
+    [InlineData("ei windows ativar primeiro", "ativar", "primeiro")]
+    [InlineData("ei windows desativar segundo", "desativar", "segundo")]
+    public void PowerFirst_MatchesCorrectly(string text, string expectedPower, string expectedTarget)
     {
-        var match = ActionPattern.Match(text);
-
+        var match = PowerFirst.Match(text);
         Assert.True(match.Success);
-        Assert.Equal(expectedAction, match.Groups[1].Value.ToLowerInvariant());
+        Assert.Equal(expectedPower, match.Groups[1].Value, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(expectedTarget, match.Groups[2].Value, StringComparer.OrdinalIgnoreCase);
     }
 
-    // -------------------------------------------------------------------------
-    // Portuguese action matching
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // FORM 2: "{monitor} {power}"
+    // =========================================================================
 
     [Theory]
-    [InlineData("ei windows desligar monitor 1", "desligar")]
-    [InlineData("ei windows ligar monitor 2", "ligar")]
-    public void PortugueseAction_MatchesCorrectly(string text, string expectedAction)
+    [InlineData("hey windows first off", "first", "off")]
+    [InlineData("hey windows second on", "second", "on")]
+    [InlineData("hey windows monitor 1 off", "monitor 1", "off")]
+    [InlineData("hey windows monitor 2 enable", "monitor 2", "enable")]
+    [InlineData("ei windows primeiro desligar", "primeiro", "desligar")]
+    [InlineData("ei windows segundo ligar", "segundo", "ligar")]
+    [InlineData("ei windows terceiro desativar", "terceiro", "desativar")]
+    [InlineData("ei windows quarto ativar", "quarto", "ativar")]
+    public void TargetFirst_MatchesCorrectly(string text, string expectedTarget, string expectedPower)
     {
-        var match = ActionPattern.Match(text);
-
+        var match = TargetFirst.Match(text);
         Assert.True(match.Success);
-        Assert.Equal(expectedAction, match.Groups[1].Value.ToLowerInvariant());
+        Assert.Equal(expectedTarget, match.Groups[1].Value, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(expectedPower, match.Groups[2].Value, StringComparer.OrdinalIgnoreCase);
     }
 
-    // -------------------------------------------------------------------------
-    // Action → on/off mapping
-    // -------------------------------------------------------------------------
-
-    [Theory]
-    [InlineData("turn on", true)]
-    [InlineData("enable", true)]
-    [InlineData("ligar", true)]
-    [InlineData("turn off", false)]
-    [InlineData("disable", false)]
-    [InlineData("desligar", false)]
-    public void ActionToOnOff_MapsCorrectly(string action, bool expectedOn)
-    {
-        bool turnOn = action is "turn on" or "enable" or "ligar";
-        Assert.Equal(expectedOn, turnOn);
-    }
-
-    // -------------------------------------------------------------------------
-    // Target matching — specific monitor
-    // -------------------------------------------------------------------------
-
-    [Theory]
-    [InlineData("turn off monitor 1", 1)]
-    [InlineData("turn on monitor 2", 2)]
-    [InlineData("disable monitor 4", 4)]
-    [InlineData("desligar monitor 3", 3)]
-    public void TargetPattern_SpecificMonitor_CapturesIndex(string text, int expectedMonitor)
-    {
-        var match = TargetPattern.Match(text);
-
-        Assert.True(match.Success);
-        Assert.Equal(expectedMonitor, int.Parse(match.Groups[1].Value));
-    }
-
-    // -------------------------------------------------------------------------
-    // Target does not match "all monitors" (removed feature)
-    // -------------------------------------------------------------------------
-
-    [Theory]
-    [InlineData("turn off all monitors")]
-    [InlineData("turn off monitor")]
-    [InlineData("desligar todos os monitores")]
-    public void TargetPattern_AllMonitors_DoesNotMatch(string text)
-    {
-        var match = TargetPattern.Match(text);
-        Assert.False(match.Success);
-    }
-
-    // -------------------------------------------------------------------------
-    // Pattern rejection
-    // -------------------------------------------------------------------------
-
-    [Theory]
-    [InlineData("hey windows brightness 5 monitor 1")]
-    [InlineData("hello world")]
-    [InlineData("")]
-    public void UnrelatedText_ActionDoesNotMatch(string text)
-    {
-        Assert.False(ActionPattern.IsMatch(text));
-    }
-
-    // -------------------------------------------------------------------------
-    // Case insensitivity
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // CASE INSENSITIVITY
+    // =========================================================================
 
     [Theory]
     [InlineData("TURN OFF MONITOR 1")]
-    [InlineData("Turn On Monitor 2")]
-    [InlineData("DISABLE MONITOR 3")]
-    [InlineData("DESLIGAR MONITOR 1")]
-    public void Patterns_AreCaseInsensitive(string text)
+    [InlineData("DESLIGAR PRIMEIRO")]
+    public void PowerFirst_CaseInsensitive(string text)
     {
-        Assert.Matches(ActionPattern, text);
-        Assert.Matches(TargetPattern, text);
+        Assert.Matches(PowerFirst, text);
     }
-
-    // -------------------------------------------------------------------------
-    // Monitor index conversion (1-based → 0-based)
-    // -------------------------------------------------------------------------
 
     [Theory]
-    [InlineData("turn off monitor 1", 0)]
-    [InlineData("turn off monitor 2", 1)]
-    [InlineData("turn off monitor 4", 3)]
-    public void MonitorIndex_ConvertedToZeroBased(string text, int expectedIndex)
+    [InlineData("FIRST OFF")]
+    [InlineData("PRIMEIRO DESLIGAR")]
+    public void TargetFirst_CaseInsensitive(string text)
     {
-        var match = TargetPattern.Match(text);
-        int monitorIndex = int.Parse(match.Groups[1].Value) - 1;
-        Assert.Equal(expectedIndex, monitorIndex);
+        Assert.Matches(TargetFirst, text);
     }
 
-    // -------------------------------------------------------------------------
-    // Handler metadata
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // PATTERN REJECTION
+    // =========================================================================
+
+    [Theory]
+    [InlineData("brightness 5 monitor 1")]
+    [InlineData("hello world")]
+    [InlineData("")]
+    public void UnrelatedText_DoesNotMatch(string text)
+    {
+        Assert.False(PowerFirst.IsMatch(text));
+        Assert.False(TargetFirst.IsMatch(text));
+    }
+
+    // =========================================================================
+    // NO "ALL MONITORS" POWER — patterns must NOT match
+    // =========================================================================
+
+    [Theory]
+    [InlineData("turn off both")]
+    [InlineData("both off")]
+    [InlineData("desligar todos")]
+    [InlineData("todos desligar")]
+    public void AllMonitorsPower_NotSupported(string text)
+    {
+        // "both"/"todos" are not in MonitorTargets, so even if regex matches,
+        // ResolveMonitorIndex returns -1 and handler returns null
+        if (PowerFirst.IsMatch(text))
+        {
+            var m = PowerFirst.Match(text);
+            Assert.Equal(-1, CommandVocabulary.ResolveMonitorIndex(m.Groups[2].Value));
+        }
+        if (TargetFirst.IsMatch(text))
+        {
+            var m = TargetFirst.Match(text);
+            Assert.Equal(-1, CommandVocabulary.ResolveMonitorIndex(m.Groups[1].Value));
+        }
+    }
+
+    // =========================================================================
+    // HANDLER METADATA
+    // =========================================================================
 
     [Fact]
     public void Handler_NameIsMonitorPower()
@@ -156,53 +133,23 @@ public class MonitorPowerCommandTests
     public void Handler_SupportsBothCultures()
     {
         var handler = new MonitorPowerCommandHandler(new MonitorControlService());
-        var cultureNames = handler.SupportedCultures.Select(c => c.Name).ToList();
-
-        Assert.Contains("en-US", cultureNames);
-        Assert.Contains("pt-BR", cultureNames);
+        var names = handler.SupportedCultures.Select(c => c.Name).ToList();
+        Assert.Contains("en-US", names);
+        Assert.Contains("pt-BR", names);
         Assert.Equal(2, handler.SupportedCultures.Count);
     }
-
-    // -------------------------------------------------------------------------
-    // Grammar building — should not throw
-    // -------------------------------------------------------------------------
 
     [Fact]
     public void BuildGrammar_EnUs_DoesNotThrow()
     {
         var handler = new MonitorPowerCommandHandler(new MonitorControlService());
-        var grammar = handler.BuildGrammar(new CultureInfo("en-US"));
-        Assert.NotNull(grammar);
+        Assert.NotNull(handler.BuildGrammar(new CultureInfo("en-US")));
     }
 
     [Fact]
     public void BuildGrammar_PtBr_DoesNotThrow()
     {
         var handler = new MonitorPowerCommandHandler(new MonitorControlService());
-        var grammar = handler.BuildGrammar(new CultureInfo("pt-BR"));
-        Assert.NotNull(grammar);
-    }
-
-    // -------------------------------------------------------------------------
-    // Full command parsing (action + target combined)
-    // -------------------------------------------------------------------------
-
-    [Theory]
-    [InlineData("hey windows turn off monitor 1", false, 1)]
-    [InlineData("hey windows turn on monitor 2", true, 2)]
-    [InlineData("ei windows desligar monitor 1", false, 1)]
-    [InlineData("ei windows ligar monitor 2", true, 2)]
-    public void FullCommand_ParsesActionAndTarget(string text, bool expectedOn, int expectedMonitor)
-    {
-        var actionMatch = ActionPattern.Match(text);
-        Assert.True(actionMatch.Success);
-
-        string action = actionMatch.Groups[1].Value.ToLowerInvariant();
-        bool turnOn = action is "turn on" or "enable" or "ligar";
-        Assert.Equal(expectedOn, turnOn);
-
-        var targetMatch = TargetPattern.Match(text);
-        Assert.True(targetMatch.Success);
-        Assert.Equal(expectedMonitor, int.Parse(targetMatch.Groups[1].Value));
+        Assert.NotNull(handler.BuildGrammar(new CultureInfo("pt-BR")));
     }
 }
