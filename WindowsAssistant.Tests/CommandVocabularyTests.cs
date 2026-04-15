@@ -41,10 +41,9 @@ public class CommandVocabularyTests
     }
 
     [Theory]
-    [InlineData("fourth")]
-    [InlineData("quarto")]
-    [InlineData("fifth")]
-    [InlineData("monitor 5")]
+    [InlineData("sixth")]        // vocabulary stops at fifth / quinto / monitor 5
+    [InlineData("sexto")]
+    [InlineData("monitor 6")]
     [InlineData("unknown")]
     [InlineData("")]
     public void ResolveMonitorIndex_Invalid_ReturnsNegative(string target)
@@ -60,8 +59,13 @@ public class CommandVocabularyTests
     [InlineData("on")]
     [InlineData("enable")]
     [InlineData("turn on")]
+    [InlineData("power on")]
+    [InlineData("wake")]
+    [InlineData("wake up")]
     [InlineData("ligar")]
     [InlineData("ativar")]
+    [InlineData("acorda")]
+    [InlineData("despertar")]
     public void IsPowerOn_OnWords_ReturnsTrue(string word)
     {
         Assert.True(CommandVocabulary.IsPowerOn(word));
@@ -71,8 +75,14 @@ public class CommandVocabularyTests
     [InlineData("off")]
     [InlineData("disable")]
     [InlineData("turn off")]
+    [InlineData("power off")]
+    [InlineData("shut down")]
+    [InlineData("shut off")]
+    [InlineData("sleep")]
     [InlineData("desligar")]
     [InlineData("desativar")]
+    [InlineData("dormir")]
+    [InlineData("adormecer")]
     public void IsPowerOff_OffWords_ReturnsTrue(string word)
     {
         Assert.True(CommandVocabulary.IsPowerOff(word));

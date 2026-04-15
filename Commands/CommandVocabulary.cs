@@ -36,17 +36,19 @@ public static class CommandVocabulary
     public static readonly HashSet<string> PowerOnWords = new(StringComparer.OrdinalIgnoreCase)
     {
         // en-US
-        "on", "enable", "turn on",
+        "on", "enable", "turn on", "power on", "wake", "wake up",
         // pt-BR (infinitive + common indicative/imperative variants)
         "ligar", "liga", "ligue", "ativar", "acender", "acende", "acenda",
+        "acorda", "acorde", "acordar", "desperta", "desperte", "despertar",
     };
 
     public static readonly HashSet<string> PowerOffWords = new(StringComparer.OrdinalIgnoreCase)
     {
         // en-US
-        "off", "disable", "turn off",
+        "off", "disable", "turn off", "power off", "shut down", "shut off", "sleep",
         // pt-BR
         "desligar", "desliga", "desligue", "desativar", "apagar", "apaga", "apague",
+        "dormir", "dorme", "durma", "adormecer", "adormece", "adormeça",
     };
 
     public static bool IsPowerOn(string word) => PowerOnWords.Contains(word);
@@ -58,7 +60,7 @@ public static class CommandVocabulary
 
     public static readonly Dictionary<string, string[]> BrightnessWords = new()
     {
-        ["en-US"] = ["brightness"],
+        ["en-US"] = ["brightness", "light"],
         ["pt-BR"] = ["brilho", "luminosidade", "luz"],
     };
 
@@ -66,6 +68,33 @@ public static class CommandVocabulary
     {
         ["en-US"] = ["on", "in"],
         ["pt-BR"] = ["no", "na", "do", "da", "em"],
+    };
+
+    /// <summary>
+    /// Action verbs that can lead a "set X to N" brightness phrasing —
+    /// "set monitor one to 50", "ajusta o primeiro em 50", etc.
+    /// </summary>
+    public static readonly Dictionary<string, string[]> SetVerbs = new()
+    {
+        ["en-US"] = ["set", "put", "make", "change", "adjust", "configure"],
+        ["pt-BR"] = [
+            "ajustar", "ajusta", "ajuste",
+            "definir", "define", "defina",
+            "colocar", "coloca", "coloque",
+            "mudar", "muda", "mude",
+            "deixar", "deixa", "deixe",
+            "pôr", "por",
+        ],
+    };
+
+    /// <summary>
+    /// Words that connect a target to a numeric value — "to 50", "em 50",
+    /// "at 80", "para 80". Used by the verb-led brightness pattern.
+    /// </summary>
+    public static readonly Dictionary<string, string[]> ValueConnectors = new()
+    {
+        ["en-US"] = ["to", "at"],
+        ["pt-BR"] = ["em", "pra", "para", "a"],
     };
 
     // -------------------------------------------------------------------------
@@ -111,6 +140,20 @@ public static class CommandVocabulary
     internal static string PrepositionPattern()
     {
         var all = Prepositions.Values.SelectMany(v => v).Distinct().Select(Regex.Escape);
+        return $@"(?:{string.Join("|", all)})";
+    }
+
+    /// <summary>Regex alternation for all "set N" verbs across cultures.</summary>
+    internal static string SetVerbPattern()
+    {
+        var all = SetVerbs.Values.SelectMany(v => v).Distinct().Select(Regex.Escape);
+        return $@"(?:{string.Join("|", all)})";
+    }
+
+    /// <summary>Regex alternation for value connectors ("to", "em", "para"...).</summary>
+    internal static string ValueConnectorPattern()
+    {
+        var all = ValueConnectors.Values.SelectMany(v => v).Distinct().Select(Regex.Escape);
         return $@"(?:{string.Join("|", all)})";
     }
 

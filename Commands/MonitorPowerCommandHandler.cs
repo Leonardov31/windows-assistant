@@ -51,9 +51,16 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
             "pt-BR" => new[]
             {
                 "ligar", "liga", "ligue", "ativar", "acender", "acende", "acenda",
-                "desligar", "desliga", "desligue", "desativar", "apagar", "apaga", "apague",
+                "acorda", "acorde", "acordar", "desperta", "desperte", "despertar",
+                "desligar", "desliga", "desligue", "desativar",
+                "apagar", "apaga", "apague",
+                "dormir", "dorme", "durma", "adormecer", "adormece", "adormeça",
             },
-            _ => new[] { "on", "enable", "turn", "off", "disable" },
+            _ => new[]
+            {
+                "on", "enable", "turn", "off", "disable",
+                "power", "wake", "up", "shut", "down", "sleep",
+            },
         };
         foreach (var w in cultureWords) words.Add(w);
 

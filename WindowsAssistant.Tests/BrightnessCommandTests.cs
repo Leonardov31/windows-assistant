@@ -20,6 +20,9 @@ public class BrightnessCommandTests
     private static readonly Regex AllPattern = BrightnessCommandHandler.AllPattern;
     private static readonly Regex Long1Pattern = BrightnessCommandHandler.Long1Pattern;
     private static readonly Regex Long2Pattern = BrightnessCommandHandler.Long2Pattern;
+    private static readonly Regex VerbLedPattern = BrightnessCommandHandler.VerbLedPattern;
+    private static readonly Regex NumberFirstPattern = BrightnessCommandHandler.NumberFirstPattern;
+    private static readonly Regex NoTargetPattern = BrightnessCommandHandler.NoTargetPattern;
 
     // =========================================================================
     // SHORT FORM: "{monitor} {value}"
@@ -109,6 +112,89 @@ public class BrightnessCommandTests
     }
 
     // =========================================================================
+    // VERB-LED FORM (new): "{set} [{brightness} [{prep}]] {monitor} [{conn}] {value}"
+    // =========================================================================
+
+    [Theory]
+    // en-US — target only
+    [InlineData("set monitor 1 to 50",            "monitor 1", 50)]
+    [InlineData("put first at 80",                "first",     80)]
+    [InlineData("make second 70",                 "second",    70)]
+    [InlineData("change third to 40",             "third",     40)]
+    [InlineData("adjust monitor 2 to 25",         "monitor 2", 25)]
+    // en-US — with brightness keyword
+    [InlineData("set brightness on first to 50",  "first",     50)]
+    [InlineData("adjust brightness on monitor 1 to 30", "monitor 1", 30)]
+    // pt-BR — target only
+    [InlineData("ajusta primeiro em 30",          "primeiro",  30)]
+    [InlineData("coloca segundo em 80",           "segundo",   80)]
+    [InlineData("define terceiro em 50",          "terceiro",  50)]
+    [InlineData("deixa quarto em 20",             "quarto",    20)]
+    [InlineData("muda monitor 1 para 100",        "monitor 1", 100)]
+    public void VerbLedForm_MatchesPattern(string text, string expectedTarget, int expectedValue)
+    {
+        var match = VerbLedPattern.Match(text);
+        Assert.True(match.Success, $"Expected match: \"{text}\"");
+        Assert.Equal(expectedTarget, match.Groups[1].Value, StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(expectedValue, int.Parse(match.Groups[2].Value));
+    }
+
+    // =========================================================================
+    // NUMBER-FIRST FORM (new): "{value} {prep} {monitor}"
+    // =========================================================================
+
+    [Theory]
+    [InlineData("50 on monitor 1",        50, "monitor 1")]
+    [InlineData("80 in monitor 2",        80, "monitor 2")]
+    [InlineData("30 no primeiro",         30, "primeiro")]
+    [InlineData("50 no segundo",          50, "segundo")]
+    [InlineData("80 em terceiro",         80, "terceiro")]
+    [InlineData("100 no monitor 1",       100, "monitor 1")]
+    public void NumberFirstForm_MatchesPattern(string text, int expectedValue, string expectedTarget)
+    {
+        var match = NumberFirstPattern.Match(text);
+        Assert.True(match.Success);
+        Assert.Equal(expectedValue, int.Parse(match.Groups[1].Value));
+        Assert.Equal(expectedTarget, match.Groups[2].Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    // =========================================================================
+    // NO-TARGET FORM (new): "{brightness} [in|em] {value}" → all monitors
+    // =========================================================================
+
+    [Theory]
+    // pt-BR
+    [InlineData("brilho 30",         30)]
+    [InlineData("brilho em 30",      30)]
+    [InlineData("brilho 2",          2)]   // level — handler maps 2 → 20%
+    [InlineData("luz 50",            50)]
+    [InlineData("luz 2",             2)]
+    [InlineData("luminosidade 80",   80)]
+    [InlineData("luminosidade em 80",80)]
+    // en-US
+    [InlineData("brightness 30",     30)]
+    [InlineData("brightness in 50",  50)]
+    [InlineData("light 30",          30)]
+    [InlineData("light in 20",       20)]
+    public void NoTargetForm_MatchesPattern(string text, int expectedValue)
+    {
+        var match = NoTargetPattern.Match(text);
+        Assert.True(match.Success, $"Expected match: \"{text}\"");
+        Assert.Equal(expectedValue, int.Parse(match.Groups[1].Value));
+    }
+
+    [Fact]
+    public void NoTargetForm_MustNotStealLong1Match()
+    {
+        // "brilho 5 no primeiro" is a target-specific utterance — Long1
+        // claims it in dispatch order. The no-target pattern will ALSO
+        // match the prefix "brilho 5", which is why it's tried last in
+        // TryHandle.
+        Assert.True(Long1Pattern.IsMatch("brilho 5 no primeiro"));
+        Assert.True(NoTargetPattern.IsMatch("brilho 5 no primeiro"));
+    }
+
+    // =========================================================================
     // PATTERN REJECTION
     // =========================================================================
 
@@ -122,6 +208,9 @@ public class BrightnessCommandTests
         Assert.False(AllPattern.IsMatch(text));
         Assert.False(Long1Pattern.IsMatch(text));
         Assert.False(Long2Pattern.IsMatch(text));
+        Assert.False(VerbLedPattern.IsMatch(text));
+        Assert.False(NumberFirstPattern.IsMatch(text));
+        Assert.False(NoTargetPattern.IsMatch(text));
     }
 
     // =========================================================================

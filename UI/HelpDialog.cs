@@ -57,10 +57,31 @@ internal sealed class HelpDialog : Form
               {wake} quarto luminosidade oito
               {wake} monitor one brightness five
 
+            Natural phrasings
+              {wake} set monitor one to 50
+              {wake} put first at 80
+              {wake} adjust second to 70
+              {wake} change third to 40
+              {wake} ajusta primeiro em 30
+              {wake} coloca segundo em 80
+              {wake} deixa quarto em 20
+              {wake} 50 no primeiro
+              {wake} 80 on monitor one
+
+            No target — applies to ALL monitors
+              {wake} brilho 30              →  all at 30%
+              {wake} brilho em 30           →  all at 30%
+              {wake} luz 2                  →  all at 20%
+              {wake} brightness 50          →  all at 50%
+              {wake} brightness in 50       →  all at 50%
+              {wake} light 30               →  all at 30%
+
             Monitors:       monitor um..cinco  /  monitor one..five
             Ordinals:       primeiro..quinto   /  first..fifth
             All:            ambos, todos       /  both, all
-            Brightness:     brilho, luminosidade, luz  /  brightness
+            Brightness:     brilho, luminosidade, luz  /  brightness, light
+            Set verbs:      ajustar, coloca, define, deixa, muda, pôr
+                            set, put, make, change, adjust
 
             Replace {wake} above with whatever you set in the tray menu.
             """),
@@ -76,11 +97,24 @@ internal sealed class HelpDialog : Form
               {wake} enable first
               {wake} first off
 
-            Power on:   ligar, liga, ligue, ativar, acender, acende, acenda
-                        on, enable, turn on
+            Natural phrasings
+              {wake} power off monitor one
+              {wake} shut down monitor one
+              {wake} sleep monitor one
+              {wake} wake up first
+              {wake} power on second
+              {wake} acorda o primeiro
+              {wake} desperta o segundo
+              {wake} dormir o primeiro
+              {wake} adormecer o terceiro
+
+            Power on:   ligar, liga, ligue, ativar, acender, acende, acenda,
+                        acorda, acorde, acordar, desperta, desperte, despertar
+                        on, enable, turn on, power on, wake, wake up
             Power off:  desligar, desliga, desligue, desativar,
-                        apagar, apaga, apague
-                        off, disable, turn off
+                        apagar, apaga, apague,
+                        dormir, dorme, durma, adormecer, adormece, adormeça
+                        off, disable, turn off, power off, shut down, shut off, sleep
             """),
 
         ("Number words", """
@@ -105,8 +139,9 @@ internal sealed class HelpDialog : Form
 
         ("Tips", """
             •  Speak wake phrase + command as ONE utterance, no pause.
-            •  Do NOT use articles ("o", "a"). Say "apaga primeiro" — not
-               "apaga o primeiro".
+            •  Do NOT use articles ("o", "a") with the older verbs. Say
+               "apaga primeiro" — not "apaga o primeiro". Natural-language
+               verbs (ajusta, acorda, adormecer) do accept an article.
             •  If the monitor hosting the mic goes to standby, voice control
                stops until it is woken manually.
             •  Monitors must support DDC/CI. External panels usually do; laptop

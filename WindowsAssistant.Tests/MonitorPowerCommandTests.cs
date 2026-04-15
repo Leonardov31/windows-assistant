@@ -30,6 +30,35 @@ public class MonitorPowerCommandTests
     [InlineData("ei windows ligar monitor 2", "ligar", "monitor 2")]
     [InlineData("ei windows ativar primeiro", "ativar", "primeiro")]
     [InlineData("ei windows desativar segundo", "desativar", "segundo")]
+    // Every combination of {ligar,desligar,turn on,turn off} + {monitor 1..5,first..fifth}
+    // (explicitly verifying the user's listed power-verb patterns work end-to-end)
+    [InlineData("ligar monitor 1",    "ligar",    "monitor 1")]
+    [InlineData("ligar monitor 5",    "ligar",    "monitor 5")]
+    [InlineData("ligar primeiro",     "ligar",    "primeiro")]
+    [InlineData("ligar quinto",       "ligar",    "quinto")]
+    [InlineData("desligar monitor 3", "desligar", "monitor 3")]
+    [InlineData("desligar primeiro",  "desligar", "primeiro")]
+    [InlineData("desligar quinto",    "desligar", "quinto")]
+    [InlineData("turn on monitor 1",  "turn on",  "monitor 1")]
+    [InlineData("turn on monitor 5",  "turn on",  "monitor 5")]
+    [InlineData("turn on first",      "turn on",  "first")]
+    [InlineData("turn on fifth",      "turn on",  "fifth")]
+    [InlineData("turn off monitor 3", "turn off", "monitor 3")]
+    [InlineData("turn off first",     "turn off", "first")]
+    [InlineData("turn off fifth",     "turn off", "fifth")]
+    // New en-US natural phrasings
+    [InlineData("power on monitor 1",     "power on",  "monitor 1")]
+    [InlineData("power off monitor 2",    "power off", "monitor 2")]
+    [InlineData("shut down monitor 1",    "shut down", "monitor 1")]
+    [InlineData("shut off monitor 3",     "shut off",  "monitor 3")]
+    [InlineData("sleep monitor 1",        "sleep",     "monitor 1")]
+    [InlineData("wake monitor 2",         "wake",      "monitor 2")]
+    [InlineData("wake up first",          "wake up",   "first")]
+    // New pt-BR natural phrasings
+    [InlineData("acorda primeiro",        "acorda",    "primeiro")]
+    [InlineData("desperta segundo",       "desperta",  "segundo")]
+    [InlineData("dormir primeiro",        "dormir",    "primeiro")]
+    [InlineData("adormecer terceiro",     "adormecer", "terceiro")]
     public void PowerFirst_MatchesCorrectly(string text, string expectedPower, string expectedTarget)
     {
         var match = PowerFirst.Match(text);
