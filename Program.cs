@@ -1,4 +1,9 @@
+using WindowsAssistant.Infrastructure;
 using WindowsAssistant.UI;
+
+// Stream diagnostic log lines to the parent terminal if launched from one.
+// No-op when launched from the tray shortcut (no parent console to attach to).
+ConsoleAttach.EnsureAttached();
 
 Application.EnableVisualStyles();
 Application.SetCompatibleTextRenderingDefault(false);

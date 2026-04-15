@@ -1,26 +1,26 @@
+using System.Diagnostics;
 using System.Globalization;
-using System.Text.Json;
-using Vosk;
+using Windows.Media.SpeechRecognition;
 using WindowsAssistant.Commands;
 
 namespace WindowsAssistant.Services;
 
 /// <summary>
 /// Continuously listens for the wake phrase followed by a registered command,
-/// using offline Vosk speech recognition.
+/// using Windows' built-in speech recognizer (<see cref="SpeechRecognizer"/>
+/// with a <see cref="SpeechRecognitionScenario.Dictation"/> topic constraint).
 ///
-/// Only one <see cref="VoskRecognizer"/> is active at a time — the one for
+/// Only one <see cref="SpeechRecognizer"/> is active at a time — the one for
 /// <see cref="AppSettings.ActiveCulture"/>. The wake phrase is user-defined
-/// (<see cref="AppSettings.WakePhrase"/>); its tokens are injected into the
-/// grammar alongside each handler's vocabulary. Switching language or wake
-/// phrase disposes the current model and reloads.
+/// (<see cref="AppSettings.WakePhrase"/>); dictation is free-form so changing
+/// it does not require rebuilding any grammar.
 /// </summary>
 public sealed class VoiceListenerService : IDisposable
 {
     /// <summary>
-    /// Recognitions with a mean per-word confidence below this threshold are
-    /// dropped. 0.65 was chosen empirically from voice.log samples on the
-    /// small-pt-0.3 and small-en-us-0.15 models.
+    /// Recognitions with a raw confidence below this threshold are dropped.
+    /// 0.65 matches the value used during the Vosk era; tune in voice.log if
+    /// the Windows engine behaves differently for a given language.
     /// </summary>
     private const float MinConfidence = 0.65f;
 
@@ -30,19 +30,18 @@ public sealed class VoiceListenerService : IDisposable
     private sealed class RecognizerEntry : IDisposable
     {
         public required CultureInfo Culture { get; init; }
-        public required Model Model { get; init; }
-        public required VoskRecognizer Recognizer { get; init; }
+        public required SpeechRecognizer Recognizer { get; init; }
 
         public void Dispose()
         {
+            try { Recognizer.ContinuousRecognitionSession.CancelAsync().AsTask().Wait(500); }
+            catch { /* session may already be stopped */ }
             Recognizer.Dispose();
-            Model.Dispose();
         }
     }
 
     private readonly IReadOnlyList<ICommandHandler> _handlers;
     private readonly AppSettings _settings;
-    private readonly AudioCaptureService _audio = new();
     private readonly Lock _recognizersLock = new();
     private RecognizerEntry? _engine;
     private bool _disposed;
@@ -56,25 +55,16 @@ public sealed class VoiceListenerService : IDisposable
     public string WakePhrase    => _settings.WakePhrase;
     public bool IsRunning       => _running;
 
-    static VoiceListenerService()
-    {
-        // Silence Vosk's very chatty C logger
-        Vosk.Vosk.SetLogLevel(-1);
-    }
-
     public VoiceListenerService(IReadOnlyList<ICommandHandler> handlers, AppSettings settings)
     {
         _handlers = handlers;
         _settings = settings;
 
-        LoadActiveEngine();
-
-        if (_engine is null)
-            throw new InvalidOperationException(
-                "No Vosk model could be loaded. Make sure the models finished " +
-                "downloading under %LOCALAPPDATA%\\WindowsAssistant\\Models\\.");
-
-        _audio.DataAvailable += OnAudioAvailable;
+        // Every engine-lifecycle message also streams to the terminal so the
+        // user can see "language pack missing", "mic denied", restart reasons,
+        // etc. without having to rig up a UI subscriber.
+        EngineStatus += (_, message) =>
+            LogAlways($"[{DateTime.Now:HH:mm:ss}] {message}");
     }
 
     // -------------------------------------------------------------------------
@@ -84,26 +74,31 @@ public sealed class VoiceListenerService : IDisposable
     public void Start()
     {
         if (_running) return;
-
-        _audio.Start();
         _running = true;
 
-        var devices = AudioCaptureService.EnumerateDevices();
-        Log($"[{DateTime.Now:HH:mm:ss}] Active culture: {_settings.ActiveCulture}");
-        Log($"[{DateTime.Now:HH:mm:ss}] Wake phrase: \"{_settings.WakePhrase}\"");
-        Log($"[{DateTime.Now:HH:mm:ss}] Input devices ({devices.Count}): {string.Join(" | ", devices)}");
-        Log($"[{DateTime.Now:HH:mm:ss}] Using device: {_audio.DeviceName}");
-        Log($"[{DateTime.Now:HH:mm:ss}] Min confidence: {MinConfidence:P0}");
+        LogAlways($"[{DateTime.Now:HH:mm:ss}] Active culture: {_settings.ActiveCulture}");
+        LogAlways($"[{DateTime.Now:HH:mm:ss}] Wake phrase: \"{_settings.WakePhrase}\"");
+        LogAlways($"[{DateTime.Now:HH:mm:ss}] Min confidence: {MinConfidence:P0}");
+
+        _ = LoadActiveEngineAsync();
     }
 
     public void Stop()
     {
         if (!_running) return;
-        _audio.Stop();
         _running = false;
+
+        RecognizerEntry? entry;
+        lock (_recognizersLock) entry = _engine;
+
+        if (entry is not null)
+        {
+            try { _ = entry.Recognizer.ContinuousRecognitionSession.CancelAsync(); }
+            catch { /* best effort */ }
+        }
     }
 
-    /// <summary>Switches the active culture, reloading the Vosk model.</summary>
+    /// <summary>Switches the active culture, reloading the speech recognizer.</summary>
     public void SetActiveCulture(string cultureName)
     {
         if (string.Equals(_settings.ActiveCulture, cultureName, StringComparison.OrdinalIgnoreCase))
@@ -111,12 +106,12 @@ public sealed class VoiceListenerService : IDisposable
 
         _settings.ActiveCulture = cultureName;
         _settings.Save();
-        ReloadEngine();
+        _ = ReloadEngineAsync();
 
-        Log($"[{DateTime.Now:HH:mm:ss}] Active culture changed: {cultureName}");
+        LogAlways($"[{DateTime.Now:HH:mm:ss}] Active culture changed: {cultureName}");
     }
 
-    /// <summary>Updates the wake phrase and rebuilds the current recognizer.</summary>
+    /// <summary>Updates the wake phrase. Dictation grammar doesn't need rebuilding.</summary>
     public void SetWakePhrase(string phrase)
     {
         var normalized = (phrase ?? string.Empty).Trim().ToLowerInvariant();
@@ -125,52 +120,74 @@ public sealed class VoiceListenerService : IDisposable
 
         _settings.WakePhrase = normalized;
         _settings.Save();
-        ReloadEngine();
 
-        Log($"[{DateTime.Now:HH:mm:ss}] Wake phrase changed: \"{normalized}\"");
+        LogAlways($"[{DateTime.Now:HH:mm:ss}] Wake phrase changed: \"{normalized}\"");
+        ConfigurationChanged?.Invoke(this, EventArgs.Empty);
     }
 
     // -------------------------------------------------------------------------
     // Engine lifecycle
     // -------------------------------------------------------------------------
 
-    private void LoadActiveEngine()
+    private async Task LoadActiveEngineAsync()
     {
-        var culture  = new CultureInfo(_settings.ActiveCulture);
-        var modelPath = VoskModelSetupService.GetModelPath(culture.Name);
-        if (modelPath is null)
+        var culture = new CultureInfo(_settings.ActiveCulture);
+        var lang    = new Windows.Globalization.Language(culture.Name);
+
+        if (!SpeechRecognizer.SupportedTopicLanguages.Any(
+                l => string.Equals(l.LanguageTag, lang.LanguageTag, StringComparison.OrdinalIgnoreCase)))
         {
-            EngineStatus?.Invoke(this, $"Skipped: {culture.Name} (model not installed)");
+            EngineStatus?.Invoke(this,
+                $"Skipped: {culture.Name} (Windows speech language pack not installed). " +
+                $"Settings → Time & language → Language → install the speech features for {culture.DisplayName}.");
             return;
         }
 
+        SpeechRecognizer? recognizer = null;
         try
         {
-            var model      = new Model(modelPath);
-            var grammar    = BuildGrammarJson(culture);
-            var recognizer = new VoskRecognizer(model, AudioCaptureService.SampleRate, grammar);
-            recognizer.SetWords(true);
+            recognizer = new SpeechRecognizer(lang);
+            recognizer.Constraints.Add(new SpeechRecognitionTopicConstraint(
+                SpeechRecognitionScenario.Dictation, "command"));
+
+            var compilation = await recognizer.CompileConstraintsAsync();
+            if (compilation.Status != SpeechRecognitionResultStatus.Success)
+            {
+                EngineStatus?.Invoke(this,
+                    $"Failed to compile constraints for {culture.Name}: {compilation.Status}");
+                recognizer.Dispose();
+                return;
+            }
+
+            recognizer.ContinuousRecognitionSession.ResultGenerated +=
+                (_, e) => HandleResult(culture, e.Result);
+            recognizer.ContinuousRecognitionSession.Completed +=
+                (s, e) => OnSessionCompleted(culture, e);
+
+            await recognizer.ContinuousRecognitionSession.StartAsync();
 
             lock (_recognizersLock)
             {
-                _engine = new RecognizerEntry
-                {
-                    Culture    = culture,
-                    Model      = model,
-                    Recognizer = recognizer,
-                };
+                _engine = new RecognizerEntry { Culture = culture, Recognizer = recognizer };
             }
 
             EngineStatus?.Invoke(this, $"Loaded: {culture.Name}");
             ConfigurationChanged?.Invoke(this, EventArgs.Empty);
         }
+        catch (UnauthorizedAccessException)
+        {
+            recognizer?.Dispose();
+            EngineStatus?.Invoke(this,
+                "Microphone access denied. Allow it under Settings → Privacy & security → Microphone, then restart.");
+        }
         catch (Exception ex)
         {
+            recognizer?.Dispose();
             EngineStatus?.Invoke(this, $"Failed to load {culture.Name}: {ex.Message}");
         }
     }
 
-    private void ReloadEngine()
+    private async Task ReloadEngineAsync()
     {
         RecognizerEntry? old;
         lock (_recognizersLock)
@@ -179,77 +196,77 @@ public sealed class VoiceListenerService : IDisposable
             _engine = null;
         }
         old?.Dispose();
-        LoadActiveEngine();
+
+        if (_running)
+            await LoadActiveEngineAsync();
     }
 
-    private string BuildGrammarJson(CultureInfo culture)
+    private void OnSessionCompleted(
+        CultureInfo culture,
+        SpeechContinuousRecognitionCompletedEventArgs e)
     {
-        var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (_disposed || !_running) return;
 
-        // Wake phrase tokens — user-configurable, may contain multiple words
-        foreach (var token in _settings.WakePhrase.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            words.Add(token);
-
-        foreach (var handler in _handlers)
+        // TimeoutExceeded and AudioQualityFailure are recoverable — just restart.
+        // Other statuses (e.g. user cancelled) leave the engine stopped.
+        switch (e.Status)
         {
-            if (!handler.SupportedCultures.Any(c => c.Name == culture.Name)) continue;
-            foreach (var w in handler.BuildVocabulary(culture))
-                words.Add(w);
+            case SpeechRecognitionResultStatus.TimeoutExceeded:
+            case SpeechRecognitionResultStatus.AudioQualityFailure:
+                EngineStatus?.Invoke(this, $"Session completed ({e.Status}) — restarting.");
+                _ = RestartSessionAfterDelayAsync(culture);
+                break;
+            default:
+                EngineStatus?.Invoke(this, $"Session completed ({e.Status}).");
+                break;
         }
-
-        // [unk] lets Vosk emit an unknown token for OOV audio instead of misfiring
-        var tokens = words.Select(w => w.ToLowerInvariant()).ToList();
-        tokens.Add("[unk]");
-
-        return JsonSerializer.Serialize(tokens);
     }
 
-    // -------------------------------------------------------------------------
-    // Audio → recognizer
-    // -------------------------------------------------------------------------
-
-    private void OnAudioAvailable(object? sender, byte[] pcm)
+    private async Task RestartSessionAfterDelayAsync(CultureInfo culture)
     {
+        await Task.Delay(500);
+        if (_disposed || !_running) return;
+
         RecognizerEntry? entry;
-        lock (_recognizersLock)
-            entry = _engine;
+        lock (_recognizersLock) entry = _engine;
+        if (entry is null || entry.Culture.Name != culture.Name) return;
 
-        if (entry is null) return;
-
-        if (!entry.Recognizer.AcceptWaveform(pcm, pcm.Length))
-            return;
-
-        var json = entry.Recognizer.Result();
-        HandleFinalResult(entry.Culture, json);
+        try { await entry.Recognizer.ContinuousRecognitionSession.StartAsync(); }
+        catch (Exception ex)
+        {
+            EngineStatus?.Invoke(this, $"Restart failed for {culture.Name}: {ex.Message}");
+        }
     }
 
-    private void HandleFinalResult(CultureInfo culture, string json)
+    // -------------------------------------------------------------------------
+    // Recognition dispatch
+    // -------------------------------------------------------------------------
+
+    private void HandleResult(CultureInfo culture, SpeechRecognitionResult result)
     {
-        if (!TryParseResult(json, out var rawText, out var confidence))
-            return;
+        var rawText = (result.Text ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(rawText)) return;
 
-        if (string.IsNullOrWhiteSpace(rawText))
-            return;
+        float confidence = (float)result.RawConfidence;
 
-        // Vosk emits number words (cinco, five, cinquenta, ...) — the regex
-        // parsers in the handlers expect digits. Normalize before matching.
+        // Windows' dictation engine sometimes emits number words
+        // (cinco, five, fifty) — the regex parsers in the handlers expect
+        // digits. Normalize before matching.
         var text = CommandVocabulary.NormalizeNumbers(rawText, culture);
 
-        // Diagnostic logging: every final recognition is logged, with the reason
-        // it was kept or dropped. Essential for tuning vocabulary and wake phrases.
         string prefix = text == rawText
             ? $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" ({confidence:P0})"
             : $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" (raw: \"{rawText}\") ({confidence:P0})";
 
         if (confidence < MinConfidence)
         {
-            Log($"{prefix} DROPPED: below threshold ({MinConfidence:P0})");
+            LogAlways($"{prefix} DROPPED: below threshold ({MinConfidence:P0})");
             return;
         }
 
         if (!text.StartsWith(_settings.WakePhrase, StringComparison.OrdinalIgnoreCase))
         {
-            Log($"{prefix} DROPPED: no wake phrase");
+            LogAlways($"{prefix} DROPPED: no wake phrase");
             return;
         }
 
@@ -257,77 +274,45 @@ public sealed class VoiceListenerService : IDisposable
 
         foreach (var handler in _handlers)
         {
-            var result = handler.TryHandle(output);
-            if (result is null) continue;
+            var cmdResult = handler.TryHandle(output);
+            if (cmdResult is null) continue;
 
             var command = text[_settings.WakePhrase.Length..].TrimStart();
-            var outcome = result.Success ? result.Message : $"FAILED: {result.Message}";
-            Log($"{prefix} → [{handler.Name}] {outcome} (command: \"{command}\")");
+            var outcome = cmdResult.Success ? cmdResult.Message : $"FAILED: {cmdResult.Message}";
+            LogWakeMatch($"{prefix} → [{handler.Name}] {outcome} (command: \"{command}\")");
 
             CommandExecuted?.Invoke(this, new CommandEventArgs(
                 HandlerName:    handler.Name,
                 RecognizedText: output.Text,
                 Confidence:     output.Confidence,
-                Result:         result));
+                Result:         cmdResult));
             return;
         }
 
         // Wake phrase ok, confidence ok, but no handler matched the text pattern
         var stripped = text[_settings.WakePhrase.Length..].TrimStart();
-        Log($"{prefix} DROPPED: no handler matched (command: \"{stripped}\")");
+        LogWakeMatch($"{prefix} DROPPED: no handler matched (command: \"{stripped}\")");
     }
 
-    /// <summary>
-    /// Parses a Vosk final-result JSON payload:
-    /// {"text":"...", "result":[{"conf":0.99,"word":"..."}, ...]}
-    /// Confidence is the mean of per-word confidences.
-    /// </summary>
-    private static bool TryParseResult(string json, out string text, out float confidence)
+    // -------------------------------------------------------------------------
+    // Logging
+    //
+    // - LogAlways: terminal only (Console + Trace). Every transcription and
+    //   every lifecycle line goes here so the user can watch recognition live.
+    // - LogWakeMatch: terminal AND voice.log. Only fires once the wake phrase
+    //   has been confirmed, so the file stays focused on actual user intent
+    //   instead of filling up with random background speech.
+    // -------------------------------------------------------------------------
+
+    private static void LogAlways(string message)
     {
-        text = string.Empty;
-        confidence = 0f;
-
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            if (!doc.RootElement.TryGetProperty("text", out var textEl))
-                return false;
-
-            text = textEl.GetString()?.Trim() ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(text))
-                return false;
-
-            if (!doc.RootElement.TryGetProperty("result", out var resultEl) ||
-                resultEl.ValueKind != JsonValueKind.Array)
-            {
-                // No per-word data — assume neutral confidence
-                confidence = 0.5f;
-                return true;
-            }
-
-            double confSum = 0;
-            int confCount = 0;
-            foreach (var word in resultEl.EnumerateArray())
-            {
-                if (word.TryGetProperty("conf", out var c))
-                {
-                    confSum += c.GetDouble();
-                    confCount++;
-                }
-            }
-
-            confidence = confCount > 0 ? (float)(confSum / confCount) : 0.5f;
-            return true;
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
+        try { Console.WriteLine(message); } catch { }
+        try { Trace.WriteLine(message); } catch { }
     }
 
-    private static void Log(string message)
+    private static void LogWakeMatch(string message)
     {
-        Console.WriteLine(message);
+        LogAlways(message);
 
         try
         {
@@ -348,15 +333,14 @@ public sealed class VoiceListenerService : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
+        _disposed = true;
         Stop();
-        _audio.DataAvailable -= OnAudioAvailable;
-        _audio.Dispose();
+
         lock (_recognizersLock)
         {
             _engine?.Dispose();
             _engine = null;
         }
-        _disposed = true;
     }
 }
 

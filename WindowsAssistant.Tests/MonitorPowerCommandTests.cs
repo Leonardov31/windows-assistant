@@ -140,16 +140,16 @@ public class MonitorPowerCommandTests
     }
 
     [Fact]
-    public void BuildGrammar_EnUs_DoesNotThrow()
+    public void BuildVocabulary_EnUs_DoesNotThrow()
     {
         var handler = new MonitorPowerCommandHandler(new MonitorControlService());
-        Assert.NotNull(handler.BuildGrammar(new CultureInfo("en-US")));
+        Assert.NotNull(handler.BuildVocabulary(new CultureInfo("en-US")));
     }
 
     [Fact]
-    public void BuildGrammar_PtBr_DoesNotThrow()
+    public void BuildVocabulary_PtBr_DoesNotThrow()
     {
         var handler = new MonitorPowerCommandHandler(new MonitorControlService());
-        Assert.NotNull(handler.BuildGrammar(new CultureInfo("pt-BR")));
+        Assert.NotNull(handler.BuildVocabulary(new CultureInfo("pt-BR")));
     }
 }

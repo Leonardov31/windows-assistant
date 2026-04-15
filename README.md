@@ -6,8 +6,8 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 
 - **Voice-controlled brightness** — say "Hey Windows, first 5" to set monitor 1 to 50%
 - **Monitor power control** — turn individual monitors on/off (DPMS standby) by voice
-- **Bilingual** — supports English and Portuguese (Brazil) commands simultaneously
-- **Offline recognition** — powered by [Vosk](https://alphacephei.com/vosk/). Models are downloaded on first run to `%LOCALAPPDATA%/WindowsAssistant/Models/`. No Windows speech language pack required.
+- **Bilingual** — switch between English and Portuguese (Brazil) from the tray menu
+- **Windows native speech** — uses `Windows.Media.SpeechRecognition` (OneCore). No model download, no extra disk; requires the corresponding Windows speech language pack to be installed.
 - **DDC/CI** — works with any external monitor that supports the DDC/CI protocol
 - **Startup with Windows** — optional, toggle via tray menu
 - **Help / Tutorial** — built-in guide accessible from the tray menu
@@ -48,15 +48,15 @@ Values 0–10 are levels (×10). Values 11–100 are direct percentages.
 
 Monitors: monitor 1–5, or ordinals (first/primeiro, second/segundo, third/terceiro, fourth/quarto, fifth/quinto).
 
-Wake phrases (pt-BR): "Ei Windows", "Oi Windows", "Olá Windows".
+The wake phrase is user-defined (default: `computador`). Edit it from the tray → "Wake phrase...".
 
 ## Requirements
 
-- Windows 10/11
+- Windows 10 1809 (build 17763) or later — Windows 11 recommended
 - .NET 10 Runtime (or use the self-contained build)
 - External monitor with DDC/CI support
-- Microphone (default input device)
-- Internet on first launch to download the Vosk models (~40 MB each for pt-BR and en-US)
+- Microphone (default input device) + microphone permission granted to the app
+- Windows speech language pack installed for the active language (Settings → Time & language → Language → your language → Language options → Speech)
 
 ## Build
 
@@ -81,5 +81,3 @@ dotnet publish WindowsAssistant.csproj -c Release -r win-x64 --self-contained tr
 ## Futuras Features e Fixes
 
 - **Melhorar as funcionalidades de ligar/desligar os monitores:** Aprimorar o controle de energia, suportando mais modelos de monitores e lidando melhor com cenários como múltiplos monitores e despertar (resume) do standby.
-- **Modelos Vosk maiores (opt-in):** Permitir que o usuário troque os modelos *small* pelos *large* (maior precisão, ~1,5 GB) via menu de bandeja.
-- **Custom wake phrase:** Permitir configurar a frase de ativação via UI em vez de hard-coded.

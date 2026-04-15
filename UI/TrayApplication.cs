@@ -27,9 +27,6 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
     {
         _settings = AppSettings.Load();
 
-        // Make sure the Vosk speech models are present before wiring the listener
-        VoskModelSetupService.EnsureModelsAvailable();
-
         _monitorService = new MonitorControlService();
         _monitorService.RefreshMonitors();
 

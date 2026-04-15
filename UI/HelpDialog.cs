@@ -17,8 +17,11 @@ internal sealed class HelpDialog : Form
     private static readonly (string Title, string Body)[] Sections =
     {
         ("How it works", """
-            Speech recognition runs offline via Vosk. Every utterance must start
-            with a wake phrase, followed by the command, all in one breath.
+            Speech recognition uses Windows' built-in engine
+            (Windows.Media.SpeechRecognition). Make sure the language pack
+            for the selected language is installed under Settings →
+            Time & language → Language. Every utterance must start with
+            a wake phrase, followed by the command, all in one breath.
             Numbers are spoken as words (cinco, fifty) — not digits.
             """),
 
@@ -90,8 +93,9 @@ internal sealed class HelpDialog : Form
             """),
 
         ("Tray menu", """
-            Language       —  pick pt-BR or en-US; only one is loaded at a
-                              time, keeping the footprint around ~210 MB.
+            Language       —  pick pt-BR or en-US; only one is active at
+                              a time. Requires the matching Windows speech
+                              language pack to be installed.
             Wake phrase... —  open a dialog to type any word or sentence
                               the app should listen for.
             Monitors       —  click to list the detected displays in a balloon.
@@ -107,8 +111,10 @@ internal sealed class HelpDialog : Form
                stops until it is woken manually.
             •  Monitors must support DDC/CI. External panels usually do; laptop
                built-in screens rarely do.
-            •  To debug recognition, open %LOCALAPPDATA%\\WindowsAssistant\\
-               voice.log. Every transcription is there with the drop reason.
+            •  Launch WindowsAssistant.exe from a terminal to see every
+               transcription live (including dropped ones). The file log
+               at %LOCALAPPDATA%\\WindowsAssistant\\voice.log only records
+               utterances that started with the wake phrase.
             """),
     };
 

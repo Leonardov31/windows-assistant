@@ -100,4 +100,19 @@ internal static class NativeMethods
         int attribute,
         ref int valueRef,
         int sizeOfValueRef);
+
+    // -------------------------------------------------------------------------
+    // kernel32 — attach the WinExe to the parent terminal's console so
+    // diagnostic log lines stream to wherever the exe was launched from.
+    // -------------------------------------------------------------------------
+
+    internal const int ATTACH_PARENT_PROCESS = -1;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool AttachConsole(int dwProcessId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool AllocConsole();
 }
