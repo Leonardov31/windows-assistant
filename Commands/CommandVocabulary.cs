@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Speech.Recognition;
 using System.Text.RegularExpressions;
 
 namespace WindowsAssistant.Commands;
@@ -116,10 +115,10 @@ public static class CommandVocabulary
     }
 
     // -------------------------------------------------------------------------
-    // Grammar helpers — build Choices for speech recognition per culture
+    // Vocabulary helpers — word lists per culture (consumed by Vosk grammars)
     // -------------------------------------------------------------------------
 
-    /// <summary>Ordinal word list for a given culture (for building separate grammar paths).</summary>
+    /// <summary>Ordinal words for a given culture.</summary>
     public static string[] OrdinalWordList(CultureInfo culture)
     {
         return culture.Name switch
@@ -129,67 +128,12 @@ public static class CommandVocabulary
         };
     }
 
-    /// <summary>Choices for ordinal words in a given culture.</summary>
-    public static Choices OrdinalChoices(CultureInfo culture) =>
-        new(OrdinalWordList(culture));
-
-    /// <summary>Choices for "all monitors" words in a given culture.</summary>
-    public static Choices AllChoices(CultureInfo culture)
-    {
-        return culture.Name switch
-        {
-            "pt-BR" => new Choices("ambos", "todos"),
-            _       => new Choices("both", "all"),
-        };
-    }
-
-    /// <summary>Choices for power on/off words in a given culture.</summary>
-    public static Choices PowerOnChoices(CultureInfo culture)
-    {
-        return culture.Name switch
-        {
-            "pt-BR" => new Choices("ligar", "liga", "ligue", "ativar", "acender", "acende", "acenda"),
-            _       => new Choices("on", "enable", "turn on"),
-        };
-    }
-
-    public static Choices PowerOffChoices(CultureInfo culture)
-    {
-        return culture.Name switch
-        {
-            "pt-BR" => new Choices("desligar", "desliga", "desligue", "desativar", "apagar", "apaga", "apague"),
-            _       => new Choices("off", "disable", "turn off"),
-        };
-    }
-
-    public static Choices PowerChoices(CultureInfo culture)
-    {
-        var on = PowerOnChoices(culture);
-        var off = PowerOffChoices(culture);
-        return new Choices(new GrammarBuilder(on), new GrammarBuilder(off));
-    }
-
-    /// <summary>Choices for brightness keywords in a given culture.</summary>
-    public static Choices BrightnessKeywordChoices(CultureInfo culture)
-    {
-        var words = BrightnessWords.GetValueOrDefault(culture.Name, ["brightness"]);
-        return new Choices(words);
-    }
-
-    /// <summary>Choices for prepositions in a given culture.</summary>
-    public static Choices PrepositionChoices(CultureInfo culture)
-    {
-        var words = Prepositions.GetValueOrDefault(culture.Name, ["on", "in"]);
-        return new Choices(words);
-    }
-
-    /// <summary>Choices for monitor number (1–5).</summary>
-    public static Choices MonitorNumberChoices() => new("1", "2", "3", "4", "5");
-
-    /// <summary>Choices for brightness values (speech recognition grammar).</summary>
-    public static Choices BrightnessValueChoices() => new(
+    /// <summary>Flat list of numeric words (monitor numbers + brightness values).</summary>
+    public static string[] NumericWords() =>
+    [
         "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
-        "20", "30", "40", "50", "60", "70", "80", "90", "100");
+        "20", "30", "40", "50", "60", "70", "80", "90", "100",
+    ];
 
     // -------------------------------------------------------------------------
     // Target resolution — resolves recognized text to a monitor index

@@ -1,15 +1,22 @@
 using System.Globalization;
-using System.Speech.Recognition;
+using System.Text.Json;
+using Vosk;
 using WindowsAssistant.Commands;
 
 namespace WindowsAssistant.Services;
 
 /// <summary>
-/// Continuously listens for the wake phrase followed by a registered command.
-/// Creates one <see cref="SpeechRecognitionEngine"/> per detected culture so
-/// English and Portuguese commands work simultaneously.
+/// Continuously listens for the wake phrase followed by a registered command,
+/// using offline Vosk speech recognition.
 ///
-/// Automatically adapts recognition timeouts based on observed speaking pace.
+/// One <see cref="VoskRecognizer"/> is created per detected culture whose model
+/// is present on disk (see <see cref="VoskModelSetupService"/>). Microphone
+/// audio is captured once (<see cref="AudioCaptureService"/>) and fanned out
+/// to every recognizer in parallel — whichever transcribes with the highest
+/// confidence wins.
+///
+/// Automatically adapts the minimum confidence threshold based on observed
+/// speaking pace.
 /// </summary>
 public sealed class VoiceListenerService : IDisposable
 {
@@ -21,19 +28,41 @@ public sealed class VoiceListenerService : IDisposable
         ["pt-BR"] = ["ei windows", "oi windows", "olá windows", "ola windows"],
     };
 
-    private readonly List<SpeechRecognitionEngine> _engines = new();
+    private sealed class RecognizerEntry : IDisposable
+    {
+        public required CultureInfo Culture { get; init; }
+        public required Model Model { get; init; }
+        public required VoskRecognizer Recognizer { get; init; }
+
+        public void Dispose()
+        {
+            Recognizer.Dispose();
+            Model.Dispose();
+        }
+    }
+
+    private readonly List<RecognizerEntry> _engines = new();
     private readonly IReadOnlyList<ICommandHandler> _handlers;
+    private readonly AudioCaptureService _audio = new();
     private readonly Queue<double> _wordRateSamples = new();
+    private readonly Lock _recognizersLock = new();
     private SpeechSpeed _currentSpeed = SpeechSpeed.Normal;
     private float _minConfidence = 0.65f;
     private bool _disposed;
+    private bool _running;
 
     public event EventHandler<CommandEventArgs>? CommandExecuted;
     public event EventHandler<SpeechSpeed>? SpeedChanged;
     public event EventHandler<string>? EngineStatus;
 
     public SpeechSpeed Speed => _currentSpeed;
-    public IReadOnlyList<string> ActiveCultures => _engines.Select(e => e.RecognizerInfo.Culture.Name).ToList();
+    public IReadOnlyList<string> ActiveCultures => _engines.Select(e => e.Culture.Name).ToList();
+
+    static VoiceListenerService()
+    {
+        // Silence Vosk's very chatty C logger
+        Vosk.Vosk.SetLogLevel(-1);
+    }
 
     public VoiceListenerService(IReadOnlyList<ICommandHandler> handlers)
     {
@@ -49,10 +78,12 @@ public sealed class VoiceListenerService : IDisposable
 
         if (_engines.Count == 0)
             throw new InvalidOperationException(
-                "No speech recognition engines could be created. " +
-                "Install a Windows language pack with speech recognition support.");
+                "No Vosk models could be loaded. Make sure the models finished " +
+                "downloading under %LOCALAPPDATA%\\WindowsAssistant\\Models\\.");
 
         ApplySpeed(SpeechSpeed.Normal);
+
+        _audio.DataAvailable += OnAudioAvailable;
     }
 
     // -------------------------------------------------------------------------
@@ -61,14 +92,16 @@ public sealed class VoiceListenerService : IDisposable
 
     public void Start()
     {
-        foreach (var engine in _engines)
-            engine.RecognizeAsync(RecognizeMode.Multiple);
+        if (_running) return;
+        _audio.Start();
+        _running = true;
     }
 
     public void Stop()
     {
-        foreach (var engine in _engines)
-            engine.RecognizeAsyncStop();
+        if (!_running) return;
+        _audio.Stop();
+        _running = false;
     }
 
     public void SetSpeed(SpeechSpeed speed)
@@ -83,44 +116,60 @@ public sealed class VoiceListenerService : IDisposable
 
     private void TryCreateEngine(CultureInfo culture)
     {
+        var modelPath = VoskModelSetupService.GetModelPath(culture.Name);
+        if (modelPath is null)
+        {
+            EngineStatus?.Invoke(this, $"Skipped: {culture.Name} (model not installed)");
+            return;
+        }
+
         try
         {
-            var engine = new SpeechRecognitionEngine(culture);
-            engine.SetInputToDefaultAudioDevice();
-            engine.SpeechRecognized += OnSpeechRecognized;
+            var model = new Model(modelPath);
+            var grammar = BuildGrammarJson(culture);
+            var recognizer = new VoskRecognizer(model, AudioCaptureService.SampleRate, grammar);
+            recognizer.SetWords(true); // enable per-word confidence in results
 
-            LoadGrammar(engine, culture);
-            _engines.Add(engine);
+            _engines.Add(new RecognizerEntry
+            {
+                Culture    = culture,
+                Model      = model,
+                Recognizer = recognizer,
+            });
 
             EngineStatus?.Invoke(this, $"Loaded: {culture.Name}");
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Culture not available — language pack not installed, skip silently
-            EngineStatus?.Invoke(this, $"Skipped: {culture.Name} (not installed)");
+            EngineStatus?.Invoke(this, $"Failed to load {culture.Name}: {ex.Message}");
         }
     }
 
-    private void LoadGrammar(SpeechRecognitionEngine engine, CultureInfo culture)
+    private string BuildGrammarJson(CultureInfo culture)
     {
-        string[] wakes = WakePhrases.GetValueOrDefault(culture.Name, ["hey windows"]);
+        var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var commandChoices = new Choices();
+        // Wake phrase words: individual tokens from each wake phrase
+        foreach (var phrase in WakePhrases.GetValueOrDefault(culture.Name, ["hey windows"]))
+            foreach (var token in phrase.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                words.Add(token);
+
         foreach (var handler in _handlers)
         {
-            if (handler.SupportedCultures.Any(c => c.Name == culture.Name))
-                commandChoices.Add(handler.BuildGrammar(culture));
+            if (!handler.SupportedCultures.Any(c => c.Name == culture.Name)) continue;
+            foreach (var w in handler.BuildVocabulary(culture))
+                words.Add(w);
         }
 
-        var root = new GrammarBuilder();
-        root.Append(new Choices(wakes));
-        root.Append(commandChoices);
+        // [unk] lets Vosk emit an unknown token for OOV audio instead of misfiring
+        var tokens = words.Select(w => w.ToLowerInvariant()).ToList();
+        tokens.Add("[unk]");
 
-        engine.LoadGrammar(new Grammar(root) { Name = $"WakeAndCommand_{culture.Name}" });
+        return JsonSerializer.Serialize(tokens);
     }
 
     // -------------------------------------------------------------------------
-    // Speed presets
+    // Speed presets (only confidence matters with Vosk; VAD is internal)
     // -------------------------------------------------------------------------
 
     private void ApplySpeed(SpeechSpeed speed)
@@ -129,71 +178,81 @@ public sealed class VoiceListenerService : IDisposable
             return;
 
         _currentSpeed = speed;
-
-        var (endSilence, endSilenceAmbiguous, babble, confidence) = speed switch
+        _minConfidence = speed switch
         {
-            SpeechSpeed.Slow   => (1.5, 2.5, 6.0, 0.50f),
-            SpeechSpeed.Normal => (0.5, 1.0, 4.0, 0.65f),
-            SpeechSpeed.Fast   => (0.2, 0.4, 2.0, 0.70f),
+            SpeechSpeed.Slow   => 0.50f,
+            SpeechSpeed.Normal => 0.65f,
+            SpeechSpeed.Fast   => 0.70f,
             _ => throw new ArgumentOutOfRangeException(nameof(speed)),
         };
 
-        foreach (var engine in _engines)
-        {
-            engine.EndSilenceTimeout         = TimeSpan.FromSeconds(endSilence);
-            engine.EndSilenceTimeoutAmbiguous = TimeSpan.FromSeconds(endSilenceAmbiguous);
-            engine.BabbleTimeout              = TimeSpan.FromSeconds(babble);
-        }
-
-        _minConfidence = confidence;
         SpeedChanged?.Invoke(this, speed);
     }
 
     // -------------------------------------------------------------------------
-    // Auto-detection
+    // Speed auto-detection from word rate
     // -------------------------------------------------------------------------
 
-    private void AdaptSpeed(RecognitionResult result)
+    private void AdaptSpeed(double durationSeconds, int wordCount)
     {
-        var duration = result.Audio?.Duration;
-        if (duration is null || duration.Value.TotalSeconds < 0.3)
-            return;
+        if (durationSeconds < 0.3 || wordCount == 0) return;
 
-        int wordCount = result.Text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-        double wordsPerSecond = wordCount / duration.Value.TotalSeconds;
-
+        double wordsPerSecond = wordCount / durationSeconds;
         _wordRateSamples.Enqueue(wordsPerSecond);
         while (_wordRateSamples.Count > SampleWindow)
             _wordRateSamples.Dequeue();
 
-        if (_wordRateSamples.Count < 2)
-            return;
+        if (_wordRateSamples.Count < 2) return;
 
         double avgRate = _wordRateSamples.Average();
-
         var detected = avgRate switch
         {
             < 1.5 => SpeechSpeed.Slow,
             > 3.0 => SpeechSpeed.Fast,
             _     => SpeechSpeed.Normal,
         };
-
         if (detected != _currentSpeed)
             ApplySpeed(detected);
     }
 
     // -------------------------------------------------------------------------
-    // Recognition callback
+    // Audio → recognizers
     // -------------------------------------------------------------------------
 
-    private void OnSpeechRecognized(object? sender, SpeechRecognizedEventArgs e)
+    private void OnAudioAvailable(object? sender, byte[] pcm)
     {
-        AdaptSpeed(e.Result);
+        lock (_recognizersLock)
+        {
+            foreach (var entry in _engines)
+            {
+                if (!entry.Recognizer.AcceptWaveform(pcm, pcm.Length))
+                    continue;
 
-        if (e.Result.Confidence < _minConfidence)
+                var json = entry.Recognizer.Result();
+                HandleFinalResult(entry.Culture, json);
+            }
+        }
+    }
+
+    private void HandleFinalResult(CultureInfo culture, string json)
+    {
+        if (!TryParseResult(json, out var text, out var confidence, out var durationSeconds))
             return;
 
-        var output = new RecognitionOutput(e.Result.Text, e.Result.Confidence);
+        if (string.IsNullOrWhiteSpace(text))
+            return;
+
+        int wordCount = text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+        AdaptSpeed(durationSeconds, wordCount);
+
+        if (confidence < _minConfidence)
+            return;
+
+        // Must start with a wake phrase, otherwise drop
+        if (!StartsWithAnyWakePhrase(text))
+            return;
+
+        var output = new RecognitionOutput(text, confidence);
 
         foreach (var handler in _handlers)
         {
@@ -202,7 +261,7 @@ public sealed class VoiceListenerService : IDisposable
 
             var command = StripWakePhrase(output.Text);
             var outcome = result.Success ? result.Message : $"FAILED: {result.Message}";
-            Log($"[{DateTime.Now:HH:mm:ss}] \"{command}\" ({output.Confidence:P0}) → [{handler.Name}] {outcome}");
+            Log($"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{command}\" ({output.Confidence:P0}) → [{handler.Name}] {outcome}");
 
             CommandExecuted?.Invoke(this, new CommandEventArgs(
                 HandlerName:    handler.Name,
@@ -211,6 +270,71 @@ public sealed class VoiceListenerService : IDisposable
                 Result:         result));
             return;
         }
+    }
+
+    /// <summary>
+    /// Parses a Vosk final-result JSON payload:
+    /// {"text":"...", "result":[{"conf":0.99,"start":0.1,"end":0.5,"word":"..."}, ...]}
+    /// Confidence = mean of per-word confidences. Duration = end of last word.
+    /// </summary>
+    private static bool TryParseResult(string json, out string text, out float confidence, out double durationSeconds)
+    {
+        text = string.Empty;
+        confidence = 0f;
+        durationSeconds = 0;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("text", out var textEl))
+                return false;
+
+            text = textEl.GetString()?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            if (!doc.RootElement.TryGetProperty("result", out var resultEl) ||
+                resultEl.ValueKind != JsonValueKind.Array)
+            {
+                // No per-word data — assume neutral confidence
+                confidence = 0.5f;
+                return true;
+            }
+
+            double confSum = 0;
+            int confCount = 0;
+            double lastEnd = 0;
+            double firstStart = double.MaxValue;
+
+            foreach (var word in resultEl.EnumerateArray())
+            {
+                if (word.TryGetProperty("conf", out var c))
+                {
+                    confSum += c.GetDouble();
+                    confCount++;
+                }
+                if (word.TryGetProperty("start", out var s)) firstStart = Math.Min(firstStart, s.GetDouble());
+                if (word.TryGetProperty("end",   out var e)) lastEnd    = Math.Max(lastEnd,    e.GetDouble());
+            }
+
+            confidence = confCount > 0 ? (float)(confSum / confCount) : 0.5f;
+            durationSeconds = firstStart < double.MaxValue ? Math.Max(0, lastEnd - firstStart) : 0;
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static bool StartsWithAnyWakePhrase(string text)
+    {
+        foreach (var wake in WakePhrases.Values.SelectMany(v => v))
+        {
+            if (text.StartsWith(wake, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
     }
 
     private static string StripWakePhrase(string text)
@@ -246,8 +370,11 @@ public sealed class VoiceListenerService : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
-        foreach (var engine in _engines)
-            engine.Dispose();
+        Stop();
+        _audio.DataAvailable -= OnAudioAvailable;
+        _audio.Dispose();
+        foreach (var entry in _engines)
+            entry.Dispose();
         _disposed = true;
     }
 }

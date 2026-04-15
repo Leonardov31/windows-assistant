@@ -21,7 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Speech" Version="8.0.0" />
     <PackageReference Include="Vosk" Version="0.3.38" />
     <PackageReference Include="NAudio" Version="2.3.0" />
   </ItemGroup>

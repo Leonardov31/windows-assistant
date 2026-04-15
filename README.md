@@ -7,10 +7,10 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 - **Voice-controlled brightness** — say "Hey Windows, first 5" to set monitor 1 to 50%
 - **Monitor power control** — turn individual monitors on/off (DPMS standby) by voice
 - **Bilingual** — supports English and Portuguese (Brazil) commands simultaneously
-- **Auto speech speed detection** — adapts to slow, normal, or fast speaking pace
+- **Offline recognition** — powered by [Vosk](https://alphacephei.com/vosk/). Models are downloaded on first run to `%LOCALAPPDATA%/WindowsAssistant/Models/`. No Windows speech language pack required.
+- **Auto speech speed detection** — adapts the confidence threshold to slow, normal, or fast speaking pace
 - **DDC/CI** — works with any external monitor that supports the DDC/CI protocol
 - **Startup with Windows** — optional, toggle via tray menu
-- **Language dependency check** — detects missing speech language packs and offers to install them automatically
 - **Help / Tutorial** — built-in guide accessible from the tray menu
 
 ## Voice Commands
@@ -56,7 +56,8 @@ Wake phrases (pt-BR): "Ei Windows", "Oi Windows", "Olá Windows".
 - Windows 10/11
 - .NET 10 Runtime (or use the self-contained build)
 - External monitor with DDC/CI support
-- For Portuguese: the app will detect and offer to install the pt-BR language pack automatically on startup
+- Microphone (default input device)
+- Internet on first launch to download the Vosk models (~40 MB each for pt-BR and en-US)
 
 ## Build
 
@@ -80,6 +81,6 @@ dotnet publish WindowsAssistant.csproj -c Release -r win-x64 --self-contained tr
 
 ## Futuras Features e Fixes
 
-- **Alternativas à API do Windows de Text To Speech:** Explorar e implementar outras opções de reconhecimento de voz mais precisas ou flexíveis.
-- **Melhorar o reconhecimento em Português:** Ajustar gramáticas, sensibilidade ou modelos para que comandos em português sejam reconhecidos com maior taxa de sucesso.
 - **Melhorar as funcionalidades de ligar/desligar os monitores:** Aprimorar o controle de energia, suportando mais modelos de monitores e lidando melhor com cenários como múltiplos monitores e despertar (resume) do standby.
+- **Modelos Vosk maiores (opt-in):** Permitir que o usuário troque os modelos *small* pelos *large* (maior precisão, ~1,5 GB) via menu de bandeja.
+- **Custom wake phrase:** Permitir configurar a frase de ativação via UI em vez de hard-coded.

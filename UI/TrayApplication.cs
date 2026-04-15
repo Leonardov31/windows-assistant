@@ -20,8 +20,8 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
 
     public TrayApplication()
     {
-        // Check and offer to install missing speech language packs before anything else
-        LanguageSetupService.CheckAndPromptInstall();
+        // Make sure the Vosk speech models are present before wiring the listener
+        VoskModelSetupService.EnsureModelsAvailable();
 
         _monitorService = new MonitorControlService();
         _monitorService.RefreshMonitors();
