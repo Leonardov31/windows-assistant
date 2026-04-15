@@ -85,9 +85,8 @@ internal sealed class HelpDialog : Form
         ("Tray menu", """
             Languages      —  toggle pt-BR / en-US at runtime. Disabling a
                               language frees ~130 MB of RAM used by the Vosk model.
-            Speech speed   —  adjusts the confidence threshold. Slow, Normal or
-                              Fast. Auto-detects your pace when left on Normal.
             Monitors       —  click to list the detected displays in a balloon.
+            Refresh        —  re-enumerate displays after plugging one in/out.
             Start with Windows  —  optional autostart on logon.
             """),
 

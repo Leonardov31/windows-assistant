@@ -110,10 +110,6 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         languagesMenu.Image = RenderGlyph(FluentIcon.Globe, colors.Foreground);
         menu.Items.Add(languagesMenu);
 
-        var speedMenu = BuildSpeedMenu();
-        speedMenu.Image = RenderGlyph(FluentIcon.Microphone, colors.Foreground);
-        menu.Items.Add(speedMenu);
-
         menu.Items.Add(new ToolStripSeparator());
 
         // --- System -------------------------------------------------------
@@ -203,39 +199,6 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
             $"{PrettyCultureName(culture)} {state}", ToolTipIcon.Info);
     }
 
-    private ToolStripMenuItem BuildSpeedMenu()
-    {
-        var speedMenu = new ToolStripMenuItem("Speech speed");
-
-        foreach (SpeechSpeed speed in Enum.GetValues<SpeechSpeed>())
-        {
-            var item = new ToolStripMenuItem(speed.ToString())
-            {
-                Tag     = speed,
-                Checked = speed == _voiceService.Speed,
-            };
-            item.Click += OnSpeedItemClicked;
-            speedMenu.DropDownItems.Add(item);
-        }
-
-        _voiceService.SpeedChanged += (_, newSpeed) =>
-        {
-            foreach (ToolStripMenuItem item in speedMenu.DropDownItems)
-                item.Checked = (SpeechSpeed)item.Tag! == newSpeed;
-        };
-
-        return speedMenu;
-    }
-
-    private void OnSpeedItemClicked(object? sender, EventArgs e)
-    {
-        if (sender is ToolStripMenuItem item && item.Tag is SpeechSpeed speed)
-        {
-            _voiceService.SetSpeed(speed);
-            _trayIcon.ShowBalloonTip(2000, "Windows Assistant", $"Speech speed: {speed}", ToolTipIcon.Info);
-        }
-    }
-
     private void ShowHelp()
     {
         var dialog = new HelpDialog();
@@ -285,7 +248,6 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         public const string Monitor    = "\uE7F4";
         public const string Refresh    = "\uE72C";
         public const string Globe      = "\uF2B7";
-        public const string Microphone = "\uE720";
         public const string Play       = "\uE768";
         public const string Exit       = "\uE7E8";
     }

@@ -12,15 +12,17 @@ namespace WindowsAssistant.Services;
 /// One <see cref="VoskRecognizer"/> is created per detected culture whose model
 /// is present on disk (see <see cref="VoskModelSetupService"/>). Microphone
 /// audio is captured once (<see cref="AudioCaptureService"/>) and fanned out
-/// to every recognizer in parallel — whichever transcribes with the highest
-/// confidence wins.
-///
-/// Automatically adapts the minimum confidence threshold based on observed
-/// speaking pace.
+/// to every recognizer in parallel; utterances below <see cref="MinConfidence"/>
+/// are dropped.
 /// </summary>
 public sealed class VoiceListenerService : IDisposable
 {
-    private const int SampleWindow = 8;
+    /// <summary>
+    /// Recognitions with a mean per-word confidence below this threshold are
+    /// dropped. 0.65 was chosen empirically from voice.log samples on the
+    /// small-pt-0.3 and small-en-us-0.15 models.
+    /// </summary>
+    private const float MinConfidence = 0.65f;
 
     private static readonly Dictionary<string, string[]> WakePhrases = new()
     {
@@ -52,19 +54,14 @@ public sealed class VoiceListenerService : IDisposable
     private readonly List<RecognizerEntry> _engines = new();
     private readonly IReadOnlyList<ICommandHandler> _handlers;
     private readonly AudioCaptureService _audio = new();
-    private readonly Queue<double> _wordRateSamples = new();
     private readonly Lock _recognizersLock = new();
-    private SpeechSpeed _currentSpeed = SpeechSpeed.Normal;
-    private float _minConfidence = 0.65f;
     private bool _disposed;
     private bool _running;
 
     public event EventHandler<CommandEventArgs>? CommandExecuted;
-    public event EventHandler<SpeechSpeed>? SpeedChanged;
     public event EventHandler<string>? EngineStatus;
     public event EventHandler? ActiveCulturesChanged;
 
-    public SpeechSpeed Speed => _currentSpeed;
     public IReadOnlyList<string> ActiveCultures
     {
         get { lock (_recognizersLock) return _engines.Select(e => e.Culture.Name).ToList(); }
@@ -99,8 +96,6 @@ public sealed class VoiceListenerService : IDisposable
                 "No Vosk models could be loaded. Make sure the models finished " +
                 "downloading under %LOCALAPPDATA%\\WindowsAssistant\\Models\\.");
 
-        ApplySpeed(SpeechSpeed.Normal);
-
         _audio.DataAvailable += OnAudioAvailable;
     }
 
@@ -119,7 +114,7 @@ public sealed class VoiceListenerService : IDisposable
         Log($"[{DateTime.Now:HH:mm:ss}] Cultures loaded: {string.Join(", ", ActiveCultures)}");
         Log($"[{DateTime.Now:HH:mm:ss}] Input devices ({devices.Count}): {string.Join(" | ", devices)}");
         Log($"[{DateTime.Now:HH:mm:ss}] Using device: {_audio.DeviceName}");
-        Log($"[{DateTime.Now:HH:mm:ss}] Min confidence: {_minConfidence:P0}");
+        Log($"[{DateTime.Now:HH:mm:ss}] Min confidence: {MinConfidence:P0}");
     }
 
     public void Stop()
@@ -127,12 +122,6 @@ public sealed class VoiceListenerService : IDisposable
         if (!_running) return;
         _audio.Stop();
         _running = false;
-    }
-
-    public void SetSpeed(SpeechSpeed speed)
-    {
-        _wordRateSamples.Clear();
-        ApplySpeed(speed);
     }
 
     // -------------------------------------------------------------------------
@@ -235,53 +224,6 @@ public sealed class VoiceListenerService : IDisposable
     }
 
     // -------------------------------------------------------------------------
-    // Speed presets (only confidence matters with Vosk; VAD is internal)
-    // -------------------------------------------------------------------------
-
-    private void ApplySpeed(SpeechSpeed speed)
-    {
-        if (speed == _currentSpeed && _wordRateSamples.Count > 1)
-            return;
-
-        _currentSpeed = speed;
-        _minConfidence = speed switch
-        {
-            SpeechSpeed.Slow   => 0.50f,
-            SpeechSpeed.Normal => 0.65f,
-            SpeechSpeed.Fast   => 0.70f,
-            _ => throw new ArgumentOutOfRangeException(nameof(speed)),
-        };
-
-        SpeedChanged?.Invoke(this, speed);
-    }
-
-    // -------------------------------------------------------------------------
-    // Speed auto-detection from word rate
-    // -------------------------------------------------------------------------
-
-    private void AdaptSpeed(double durationSeconds, int wordCount)
-    {
-        if (durationSeconds < 0.3 || wordCount == 0) return;
-
-        double wordsPerSecond = wordCount / durationSeconds;
-        _wordRateSamples.Enqueue(wordsPerSecond);
-        while (_wordRateSamples.Count > SampleWindow)
-            _wordRateSamples.Dequeue();
-
-        if (_wordRateSamples.Count < 2) return;
-
-        double avgRate = _wordRateSamples.Average();
-        var detected = avgRate switch
-        {
-            < 1.5 => SpeechSpeed.Slow,
-            > 3.0 => SpeechSpeed.Fast,
-            _     => SpeechSpeed.Normal,
-        };
-        if (detected != _currentSpeed)
-            ApplySpeed(detected);
-    }
-
-    // -------------------------------------------------------------------------
     // Audio → recognizers
     // -------------------------------------------------------------------------
 
@@ -302,14 +244,11 @@ public sealed class VoiceListenerService : IDisposable
 
     private void HandleFinalResult(CultureInfo culture, string json)
     {
-        if (!TryParseResult(json, out var rawText, out var confidence, out var durationSeconds))
+        if (!TryParseResult(json, out var rawText, out var confidence))
             return;
 
         if (string.IsNullOrWhiteSpace(rawText))
             return;
-
-        int wordCount = rawText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
-        AdaptSpeed(durationSeconds, wordCount);
 
         // Vosk emits number words (cinco, five, cinquenta, ...) — the regex
         // parsers in the handlers expect digits. Normalize before matching.
@@ -322,9 +261,9 @@ public sealed class VoiceListenerService : IDisposable
             ? $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" ({confidence:P0})"
             : $"[{DateTime.Now:HH:mm:ss}] [{culture.Name}] \"{text}\" (raw: \"{rawText}\") ({confidence:P0})";
 
-        if (confidence < _minConfidence)
+        if (confidence < MinConfidence)
         {
-            Log($"{prefix} DROPPED: below threshold ({_minConfidence:P0})");
+            Log($"{prefix} DROPPED: below threshold ({MinConfidence:P0})");
             return;
         }
 
@@ -359,14 +298,13 @@ public sealed class VoiceListenerService : IDisposable
 
     /// <summary>
     /// Parses a Vosk final-result JSON payload:
-    /// {"text":"...", "result":[{"conf":0.99,"start":0.1,"end":0.5,"word":"..."}, ...]}
-    /// Confidence = mean of per-word confidences. Duration = end of last word.
+    /// {"text":"...", "result":[{"conf":0.99,"word":"..."}, ...]}
+    /// Confidence is the mean of per-word confidences.
     /// </summary>
-    private static bool TryParseResult(string json, out string text, out float confidence, out double durationSeconds)
+    private static bool TryParseResult(string json, out string text, out float confidence)
     {
         text = string.Empty;
         confidence = 0f;
-        durationSeconds = 0;
 
         try
         {
@@ -388,9 +326,6 @@ public sealed class VoiceListenerService : IDisposable
 
             double confSum = 0;
             int confCount = 0;
-            double lastEnd = 0;
-            double firstStart = double.MaxValue;
-
             foreach (var word in resultEl.EnumerateArray())
             {
                 if (word.TryGetProperty("conf", out var c))
@@ -398,12 +333,9 @@ public sealed class VoiceListenerService : IDisposable
                     confSum += c.GetDouble();
                     confCount++;
                 }
-                if (word.TryGetProperty("start", out var s)) firstStart = Math.Min(firstStart, s.GetDouble());
-                if (word.TryGetProperty("end",   out var e)) lastEnd    = Math.Max(lastEnd,    e.GetDouble());
             }
 
             confidence = confCount > 0 ? (float)(confSum / confCount) : 0.5f;
-            durationSeconds = firstStart < double.MaxValue ? Math.Max(0, lastEnd - firstStart) : 0;
             return true;
         }
         catch (JsonException)

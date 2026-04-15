@@ -73,4 +73,4 @@ Upgrading a model: drop a different Vosk model folder under the same `{culture}/
 - Monitor power uses VCP code 0xD6 via `SetVCPFeature` (1 = on, 4 = standby)
 - Crash logs are written to `%LOCALAPPDATA%/WindowsAssistant/crash.log`
 - Voice recognition events (including culture, text, confidence) are logged to `%LOCALAPPDATA%/WindowsAssistant/voice.log`
-- Speech speed auto-adapts the minimum confidence threshold based on a rolling average of words-per-second (no timeout tuning — Vosk's VAD is internal)
+- Minimum confidence threshold is a fixed constant (`VoiceListenerService.MinConfidence = 0.65f`). Vosk's VAD is internal and not user-tunable, so no timeout/speed presets exist.

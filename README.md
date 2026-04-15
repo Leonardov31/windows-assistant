@@ -8,7 +8,6 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 - **Monitor power control** — turn individual monitors on/off (DPMS standby) by voice
 - **Bilingual** — supports English and Portuguese (Brazil) commands simultaneously
 - **Offline recognition** — powered by [Vosk](https://alphacephei.com/vosk/). Models are downloaded on first run to `%LOCALAPPDATA%/WindowsAssistant/Models/`. No Windows speech language pack required.
-- **Auto speech speed detection** — adapts the confidence threshold to slow, normal, or fast speaking pace
 - **DDC/CI** — works with any external monitor that supports the DDC/CI protocol
 - **Startup with Windows** — optional, toggle via tray menu
 - **Help / Tutorial** — built-in guide accessible from the tray menu
@@ -76,7 +75,7 @@ dotnet publish WindowsAssistant.csproj -c Release -r win-x64 --self-contained tr
 
 1. Run `WindowsAssistant.exe`
 2. A blue "W" icon appears in the system tray
-3. Right-click for options (Help, Monitors, Speech speed, Startup, Exit)
+3. Right-click for options (Help, Monitors, Languages, Startup, Exit)
 4. Speak commands using the wake phrase + command
 
 ## Futuras Features e Fixes
