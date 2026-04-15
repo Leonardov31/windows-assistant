@@ -112,5 +112,15 @@ public class MonitorControlServiceTests : IDisposable
         Assert.False(_service.SetAllMonitorsPower(false));
     }
 
+    // -------------------------------------------------------------------------
+    // SetAllBrightness — empty list
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void SetAllBrightness_NoMonitors_ReturnsFalse()
+    {
+        Assert.False(_service.SetAllBrightness(50));
+    }
+
     public void Dispose() => _service.Dispose();
 }

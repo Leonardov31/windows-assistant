@@ -19,7 +19,7 @@ namespace WindowsAssistant.Commands;
 /// Portuguese (pt-BR):
 ///   "desligar monitor 1"       — standby monitor 1
 ///   "ligar monitor 2"          — wake monitor 2
-///   "desligar todos monitor"   — standby all monitors
+///   "desligar todos os monitores" — standby all monitors
 /// </summary>
 public sealed class MonitorPowerCommandHandler : ICommandHandler
 {
@@ -31,7 +31,7 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     internal static readonly Regex TargetPattern = new(
-        @"\bmonitor\s+(\d+)\b|\b(?:(?:all\s+)?monitors?|todos?\s+(?:os\s+)?monitors?)\b",
+        @"\bmonitor\s+(\d+)\b|\b(?:(?:all\s+)?(?:monitors?|monitores)|todos?\s+(?:os\s+)?(?:monitors?|monitores))\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     private readonly MonitorControlService _monitorService;
@@ -52,7 +52,8 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
         {
             builder.Append(new Choices("ligar", "desligar"));
             builder.Append("todos", 0, 1);
-            builder.Append("monitor");
+            builder.Append("os", 0, 1);
+            builder.Append(new Choices("monitor", "monitores"));
             builder.Append(monitors, 0, 1);
         }
         else

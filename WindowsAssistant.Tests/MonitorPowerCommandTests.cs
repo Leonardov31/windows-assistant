@@ -95,6 +95,7 @@ public class MonitorPowerCommandTests
     [InlineData("turn on monitors")]
     [InlineData("desligar todos monitor")]
     [InlineData("desligar todos os monitors")]
+    [InlineData("desligar todos os monitores")]
     public void TargetPattern_AllMonitors_NoIndexCaptured(string text)
     {
         var match = TargetPattern.Match(text);
@@ -199,7 +200,7 @@ public class MonitorPowerCommandTests
     [InlineData("hey windows turn on monitor", true, false, -1)]
     [InlineData("ei windows desligar monitor 1", false, true, 1)]
     [InlineData("ei windows ligar monitor 2", true, true, 2)]
-    [InlineData("ei windows desligar todos monitor", false, false, -1)]
+    [InlineData("ei windows desligar todos os monitores", false, false, -1)]
     public void FullCommand_ParsesActionAndTarget(string text, bool expectedOn, bool expectedSpecific, int expectedMonitor)
     {
         var actionMatch = ActionPattern.Match(text);

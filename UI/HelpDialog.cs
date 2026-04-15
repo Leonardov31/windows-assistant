@@ -19,43 +19,56 @@ internal sealed class HelpDialog : Form
           Português:  "Ei Windows"
 
 
-        BRIGHTNESS CONTROL
-        ------------------
-        Changes monitor brightness via DDC/CI.
+        QUICK COMMANDS
+        --------------
+        The fastest way to control your monitors.
+        Values 1–10 are levels (×10). 0 or above 10
+        are direct percentages.
+
+          Brightness:
+            "Hey Windows, first 2"       → monitor 1 at 20%
+            "Hey Windows, second 50"     → monitor 2 at 50%
+            "Ei Windows, primeiro 5"     → monitor 1 at 50%
+            "Hey Windows, both 80"       → all at 80%
+            "Ei Windows, ambos 3"        → all at 30%
+
+          Power (on/off):
+            "Hey Windows, first off"     → monitor 1 standby
+            "Hey Windows, second on"     → monitor 2 on
+            "Ei Windows, primeiro desligar" → standby
+            "Hey Windows, both off"      → all standby
+            "Ei Windows, todos ligar"    → all on
+
+        Ordinals: first/primeiro, second/segundo,
+        third/terceiro, fourth/quarto.
+        All: both/all, ambos/todos.
+
+
+        BRIGHTNESS (ALTERNATIVE FORMS)
+        ------------------------------
+        Short form:
+          "Hey Windows, monitor 1 2"    → 20%
+          "Hey Windows, monitor 1 20"   → 20%
+          "Ei Windows, monitor 1 5"     → 50%
 
         Full form (scale 1–10 → 10%–100%):
           "Hey Windows, brightness 3 in monitor 1"
-          "Hey Windows, brightness 7 on monitor 2"
           "Ei Windows, brilho 5 no monitor 1"
 
-        Short form (level 1–10 or percentage):
-          "Hey Windows, monitor 1 2"    → 20%
-          "Hey Windows, monitor 1 20"   → 20%
-          "Hey Windows, monitor 2 100"  → 100%
-          "Ei Windows, monitor 1 5"     → 50%
 
-        Values 1–10 are treated as levels (×10).
-        Values 0 or above 10 are direct percentages.
-
-
-        MONITOR POWER (ON / OFF)
-        ------------------------
-        Puts monitors into DPMS standby or wakes them.
-        Works with any DDC/CI monitor.
-
+        MONITOR POWER (ALTERNATIVE FORMS)
+        ----------------------------------
           English:
             "Hey Windows, turn off monitor 1"
             "Hey Windows, turn on monitor 2"
             "Hey Windows, disable monitor 1"
             "Hey Windows, enable monitor 2"
             "Hey Windows, turn off all monitors"
-            "Hey Windows, turn on monitor"  (all)
 
           Português:
             "Ei Windows, desligar monitor 1"
             "Ei Windows, ligar monitor 2"
-            "Ei Windows, desligar todos monitor"
-            "Ei Windows, ligar monitor"  (todos)
+            "Ei Windows, desligar todos os monitores"
 
         Note: to wake a monitor by voice, your
         microphone must not be on the sleeping monitor.

@@ -15,31 +15,43 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 
 ## Voice Commands
 
-### Brightness
+### Quick Commands
 
-| Language | Example | Effect |
-|---|---|---|
-| Any | "Hey Windows, monitor 1 2" | Monitor 1 → 20% |
-| Any | "Hey Windows, monitor 1 20" | Monitor 1 → 20% |
-| Any | "Hey Windows, monitor 2 100" | Monitor 2 → 100% |
-| English | "Hey Windows, brightness 3 in monitor 1" | Monitor 1 → 30% |
-| Português | "Ei Windows, brilho 5 no monitor 1" | Monitor 1 → 50% |
+The fastest way to control your monitors. Values 1–10 are levels (×10), 0 or above 10 are direct percentages.
 
-Short form: "monitor N value" — values 1–10 are levels (×10), 0 or above 10 are direct percentage.
-Full form: "brightness/brilho N in/no monitor M" — scale 1–10 maps to 10%–100%.
+| Example | Effect |
+|---|---|
+| "Hey Windows, first 2" | Monitor 1 → 20% |
+| "Hey Windows, second 50" | Monitor 2 → 50% |
+| "Ei Windows, primeiro 5" | Monitor 1 → 50% |
+| "Hey Windows, both 80" | All → 80% |
+| "Hey Windows, first off" | Monitor 1 → standby |
+| "Hey Windows, both on" | All → on |
+| "Ei Windows, primeiro desligar" | Monitor 1 → standby |
+| "Ei Windows, todos ligar" | All → on |
 
-### Monitor Power
+Ordinals: first/primeiro, second/segundo, third/terceiro, fourth/quarto.
+All monitors: both/all, ambos/todos.
 
-| Language | Example | Effect |
-|---|---|---|
-| English | "Hey Windows, turn off monitor 1" | Monitor 1 → standby |
-| English | "Hey Windows, turn on monitor 2" | Monitor 2 → on |
-| English | "Hey Windows, disable monitor 1" | Monitor 1 → standby |
-| English | "Hey Windows, turn off all monitors" | All → standby |
-| Português | "Ei Windows, desligar monitor 1" | Monitor 1 → standby |
-| Português | "Ei Windows, ligar monitor 2" | Monitor 2 → on |
+### Brightness (alternative forms)
 
-Omit the monitor number to target all monitors.
+| Example | Effect |
+|---|---|
+| "Hey Windows, monitor 1 2" | Monitor 1 → 20% |
+| "Hey Windows, monitor 1 20" | Monitor 1 → 20% |
+| "Hey Windows, brightness 3 in monitor 1" | Monitor 1 → 30% |
+| "Ei Windows, brilho 5 no monitor 1" | Monitor 1 → 50% |
+
+### Monitor Power (alternative forms)
+
+| Example | Effect |
+|---|---|
+| "Hey Windows, turn off monitor 1" | Monitor 1 → standby |
+| "Hey Windows, turn on monitor 2" | Monitor 2 → on |
+| "Hey Windows, disable monitor 1" | Monitor 1 → standby |
+| "Hey Windows, turn off all monitors" | All → standby |
+| "Ei Windows, desligar monitor 1" | Monitor 1 → standby |
+| "Ei Windows, ligar monitor 2" | Monitor 2 → on |
 
 ## Requirements
 

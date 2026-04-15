@@ -47,6 +47,7 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
     [
         new BrightnessCommandHandler(_monitorService),
         new MonitorPowerCommandHandler(_monitorService),
+        new OrdinalCommandHandler(_monitorService),
     ];
 
     // -------------------------------------------------------------------------

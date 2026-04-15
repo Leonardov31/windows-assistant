@@ -56,6 +56,18 @@ public sealed class MonitorControlService : IDisposable
             : null;
     }
 
+    /// <summary>Sets the brightness for all enumerated monitors.</summary>
+    /// <returns><c>true</c> only if all monitors succeeded.</returns>
+    public bool SetAllBrightness(uint brightness)
+    {
+        if (_monitors.Count == 0) return false;
+        brightness = Math.Clamp(brightness, 0, 100);
+        bool allOk = true;
+        for (int i = 0; i < _monitors.Count; i++)
+            allOk &= SetBrightness(i, brightness);
+        return allOk;
+    }
+
     /// <summary>Sets the DPMS power state of a monitor via VCP code 0xD6.</summary>
     /// <param name="monitorIndex">Zero-based monitor index.</param>
     /// <param name="on"><c>true</c> = power on, <c>false</c> = standby.</param>
