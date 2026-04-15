@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Speech.Recognition;
 using System.Text.RegularExpressions;
 using WindowsAssistant.Services;
 
@@ -40,53 +39,31 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
 
     public IReadOnlyList<CultureInfo> SupportedCultures { get; } = [EnUs, PtBr];
 
-    public GrammarBuilder BuildGrammar(CultureInfo culture)
+    public IReadOnlyList<string> BuildVocabulary(CultureInfo culture)
     {
-        var monitors = CommandVocabulary.MonitorNumberChoices();
-        var power = CommandVocabulary.PowerChoices(culture);
-        var ordinalWords = CommandVocabulary.OrdinalWordList(culture);
+        var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "monitor" };
 
-        var branches = new List<GrammarBuilder>();
+        foreach (var o in CommandVocabulary.OrdinalWordList(culture)) words.Add(o);
+        foreach (var n in CommandVocabulary.NumericWords(culture))    words.Add(n);
 
-        // Form 1: power + "monitor N"
-        var pf1Monitor = new GrammarBuilder();
-        pf1Monitor.Append(power);
-        pf1Monitor.Append("monitor");
-        pf1Monitor.Append(monitors);
-        branches.Add(pf1Monitor);
-
-        // Form 1: power + ordinal (one branch per ordinal)
-        foreach (var ordinal in ordinalWords)
+        var cultureWords = culture.Name switch
         {
-            var b = new GrammarBuilder();
-            b.Append(power);
-            b.Append(ordinal);
-            branches.Add(b);
-        }
+            "pt-BR" => new[]
+            {
+                "ligar", "liga", "ligue", "ativar", "acender", "acende", "acenda",
+                "desligar", "desliga", "desligue", "desativar", "apagar", "apaga", "apague",
+            },
+            _ => new[] { "on", "enable", "turn", "off", "disable" },
+        };
+        foreach (var w in cultureWords) words.Add(w);
 
-        // Form 2: "monitor N" + power
-        var tf1Monitor = new GrammarBuilder();
-        tf1Monitor.Append("monitor");
-        tf1Monitor.Append(monitors);
-        tf1Monitor.Append(power);
-        branches.Add(tf1Monitor);
-
-        // Form 2: ordinal + power (one branch per ordinal)
-        foreach (var ordinal in ordinalWords)
-        {
-            var b = new GrammarBuilder();
-            b.Append(ordinal);
-            b.Append(power);
-            branches.Add(b);
-        }
-
-        return new Choices(branches.ToArray());
+        return words.ToArray();
     }
 
-    public CommandResult? TryHandle(RecognitionResult result)
+    public CommandResult? TryHandle(RecognitionOutput output)
     {
         // Form 1: "turn off monitor 1", "desligar primeiro"
-        var match = PowerFirstPattern.Match(result.Text);
+        var match = PowerFirstPattern.Match(output.Text);
         if (match.Success)
         {
             string powerWord = match.Groups[1].Value;
@@ -96,7 +73,7 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
         }
 
         // Form 2: "first off", "primeiro desligar"
-        match = TargetFirstPattern.Match(result.Text);
+        match = TargetFirstPattern.Match(output.Text);
         if (match.Success)
         {
             int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[1].Value);
