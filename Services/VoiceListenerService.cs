@@ -5,18 +5,23 @@ using WindowsAssistant.Commands;
 namespace WindowsAssistant.Services;
 
 /// <summary>
-/// Continuously listens for the wake phrase "Hey Windows" followed by a registered command.
-/// Dispatches each match to the appropriate <see cref="ICommandHandler"/>.
+/// Continuously listens for the wake phrase followed by a registered command.
+/// Creates one <see cref="SpeechRecognitionEngine"/> per detected culture so
+/// English and Portuguese commands work simultaneously.
 ///
-/// Automatically adapts recognition timeouts based on observed speaking pace
-/// using a rolling average of recent utterance durations.
+/// Automatically adapts recognition timeouts based on observed speaking pace.
 /// </summary>
 public sealed class VoiceListenerService : IDisposable
 {
-    private const string WakePhrase = "hey windows";
-    private const int SampleWindow  = 8;
+    private const int SampleWindow = 8;
 
-    private readonly SpeechRecognitionEngine _engine;
+    private static readonly Dictionary<string, string> WakePhrases = new()
+    {
+        ["en-US"] = "hey windows",
+        ["pt-BR"] = "ei windows",
+    };
+
+    private readonly List<SpeechRecognitionEngine> _engines = new();
     private readonly IReadOnlyList<ICommandHandler> _handlers;
     private readonly Queue<double> _wordRateSamples = new();
     private SpeechSpeed _currentSpeed = SpeechSpeed.Normal;
@@ -25,17 +30,28 @@ public sealed class VoiceListenerService : IDisposable
 
     public event EventHandler<CommandEventArgs>? CommandExecuted;
     public event EventHandler<SpeechSpeed>? SpeedChanged;
+    public event EventHandler<string>? EngineStatus;
 
     public SpeechSpeed Speed => _currentSpeed;
+    public IReadOnlyList<string> ActiveCultures => _engines.Select(e => e.RecognizerInfo.Culture.Name).ToList();
 
     public VoiceListenerService(IReadOnlyList<ICommandHandler> handlers)
     {
         _handlers = handlers;
-        _engine   = new SpeechRecognitionEngine(new CultureInfo("en-US"));
-        _engine.SetInputToDefaultAudioDevice();
-        _engine.SpeechRecognized += OnSpeechRecognized;
 
-        LoadGrammar();
+        var cultures = handlers
+            .SelectMany(h => h.SupportedCultures)
+            .Distinct()
+            .ToList();
+
+        foreach (var culture in cultures)
+            TryCreateEngine(culture);
+
+        if (_engines.Count == 0)
+            throw new InvalidOperationException(
+                "No speech recognition engines could be created. " +
+                "Install a Windows language pack with speech recognition support.");
+
         ApplySpeed(SpeechSpeed.Normal);
     }
 
@@ -43,14 +59,63 @@ public sealed class VoiceListenerService : IDisposable
     // Public control
     // -------------------------------------------------------------------------
 
-    public void Start() => _engine.RecognizeAsync(RecognizeMode.Multiple);
-    public void Stop()  => _engine.RecognizeAsyncStop();
+    public void Start()
+    {
+        foreach (var engine in _engines)
+            engine.RecognizeAsync(RecognizeMode.Multiple);
+    }
 
-    /// <summary>Force a specific speed preset (disables auto-detection until next utterance).</summary>
+    public void Stop()
+    {
+        foreach (var engine in _engines)
+            engine.RecognizeAsyncStop();
+    }
+
     public void SetSpeed(SpeechSpeed speed)
     {
         _wordRateSamples.Clear();
         ApplySpeed(speed);
+    }
+
+    // -------------------------------------------------------------------------
+    // Engine factory
+    // -------------------------------------------------------------------------
+
+    private void TryCreateEngine(CultureInfo culture)
+    {
+        try
+        {
+            var engine = new SpeechRecognitionEngine(culture);
+            engine.SetInputToDefaultAudioDevice();
+            engine.SpeechRecognized += OnSpeechRecognized;
+
+            LoadGrammar(engine, culture);
+            _engines.Add(engine);
+
+            EngineStatus?.Invoke(this, $"Loaded: {culture.Name}");
+        }
+        catch (Exception)
+        {
+            // Culture not available — language pack not installed, skip silently
+            EngineStatus?.Invoke(this, $"Skipped: {culture.Name} (not installed)");
+        }
+    }
+
+    private void LoadGrammar(SpeechRecognitionEngine engine, CultureInfo culture)
+    {
+        string wake = WakePhrases.GetValueOrDefault(culture.Name, "hey windows");
+
+        var commandChoices = new Choices();
+        foreach (var handler in _handlers)
+        {
+            if (handler.SupportedCultures.Any(c => c.Name == culture.Name))
+                commandChoices.Add(handler.BuildGrammar(culture));
+        }
+
+        var root = new GrammarBuilder(wake);
+        root.Append(commandChoices);
+
+        engine.LoadGrammar(new Grammar(root) { Name = $"WakeAndCommand_{culture.Name}" });
     }
 
     // -------------------------------------------------------------------------
@@ -72,11 +137,14 @@ public sealed class VoiceListenerService : IDisposable
             _ => throw new ArgumentOutOfRangeException(nameof(speed)),
         };
 
-        _engine.EndSilenceTimeout          = TimeSpan.FromSeconds(endSilence);
-        _engine.EndSilenceTimeoutAmbiguous  = TimeSpan.FromSeconds(endSilenceAmbiguous);
-        _engine.BabbleTimeout               = TimeSpan.FromSeconds(babble);
-        _minConfidence                      = confidence;
+        foreach (var engine in _engines)
+        {
+            engine.EndSilenceTimeout         = TimeSpan.FromSeconds(endSilence);
+            engine.EndSilenceTimeoutAmbiguous = TimeSpan.FromSeconds(endSilenceAmbiguous);
+            engine.BabbleTimeout              = TimeSpan.FromSeconds(babble);
+        }
 
+        _minConfidence = confidence;
         SpeedChanged?.Invoke(this, speed);
     }
 
@@ -84,10 +152,6 @@ public sealed class VoiceListenerService : IDisposable
     // Auto-detection
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Measures words-per-second from the recognition result's audio duration
-    /// and adjusts the speed preset accordingly.
-    /// </summary>
     private void AdaptSpeed(RecognitionResult result)
     {
         var duration = result.Audio?.Duration;
@@ -106,7 +170,6 @@ public sealed class VoiceListenerService : IDisposable
 
         double avgRate = _wordRateSamples.Average();
 
-        // Thresholds: < 1.5 wps = slow, 1.5–3.0 wps = normal, > 3.0 wps = fast
         var detected = avgRate switch
         {
             < 1.5 => SpeechSpeed.Slow,
@@ -116,23 +179,6 @@ public sealed class VoiceListenerService : IDisposable
 
         if (detected != _currentSpeed)
             ApplySpeed(detected);
-    }
-
-    // -------------------------------------------------------------------------
-    // Grammar
-    // -------------------------------------------------------------------------
-
-    private void LoadGrammar()
-    {
-        var commandChoices = new Choices();
-
-        foreach (var handler in _handlers)
-            commandChoices.Add(handler.BuildGrammar());
-
-        var root = new GrammarBuilder(WakePhrase);
-        root.Append(commandChoices);
-
-        _engine.LoadGrammar(new Grammar(root) { Name = "WakeAndCommand" });
     }
 
     // -------------------------------------------------------------------------
@@ -165,7 +211,8 @@ public sealed class VoiceListenerService : IDisposable
     public void Dispose()
     {
         if (_disposed) return;
-        _engine.Dispose();
+        foreach (var engine in _engines)
+            engine.Dispose();
         _disposed = true;
     }
 }

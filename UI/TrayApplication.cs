@@ -31,6 +31,9 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         _voiceService.Start();
 
         _trayIcon = BuildTrayIcon();
+
+        var langs = string.Join(", ", _voiceService.ActiveCultures);
+        _trayIcon.ShowBalloonTip(3000, "Windows Assistant", $"Listening ({langs})", ToolTipIcon.Info);
     }
 
     // -------------------------------------------------------------------------
@@ -63,6 +66,7 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
         header.Enabled = false;
 
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Help / Tutorial", null, (_, _) => ShowHelp());
         menu.Items.Add("Monitors detected: …", null, OnShowMonitorInfo);
         menu.Items.Add("Refresh monitors",      null, (_, _) => RefreshMonitors());
         menu.Items.Add(BuildSpeedMenu());
@@ -110,6 +114,13 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
             _voiceService.SetSpeed(speed);
             _trayIcon.ShowBalloonTip(2000, "Windows Assistant", $"Speech speed: {speed}", ToolTipIcon.Info);
         }
+    }
+
+    private void ShowHelp()
+    {
+        var dialog = new HelpDialog();
+        dialog.ShowDialog();
+        dialog.Dispose();
     }
 
     private void OnShowMonitorInfo(object? sender, EventArgs e)
