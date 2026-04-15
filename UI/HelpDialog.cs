@@ -43,13 +43,22 @@ internal sealed class HelpDialog : Form
         tray icon menu → Speech speed.
 
 
+        LANGUAGE SETUP
+        --------------
+        On startup the app checks whether each required
+        speech language pack is installed. If any are
+        missing it will offer to install them automatically
+        (requires administrator privileges).
+
+        You can also install them manually:
+          Settings → Time & Language → Language
+          → Add a language → enable Speech recognition
+
+
         TIPS
         ----
         • Monitors must support DDC/CI (most external
           monitors do; laptop built-in screens usually don't).
-        • For Portuguese recognition, install the pt-BR
-          language pack with speech support in Windows
-          Settings → Language.
         • Right-click the tray icon for all options.
         """;
 

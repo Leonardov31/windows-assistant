@@ -20,6 +20,9 @@ public sealed class TrayApplication : ApplicationContext, IDisposable
 
     public TrayApplication()
     {
+        // Check and offer to install missing speech language packs before anything else
+        LanguageSetupService.CheckAndPromptInstall();
+
         _monitorService = new MonitorControlService();
         _monitorService.RefreshMonitors();
 

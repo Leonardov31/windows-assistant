@@ -36,9 +36,14 @@ If a language pack isn't installed, that engine is silently skipped.
 ### Service wiring
 
 `TrayApplication` (in `UI/`) owns the lifecycle. Its constructor:
-1. Creates `MonitorControlService` — enumerates physical monitors, exposes DDC/CI brightness get/set via P/Invoke to `dxva2.dll`
-2. Builds a list of `ICommandHandler` implementations (currently just `BrightnessCommandHandler`)
-3. Creates `VoiceListenerService` — creates one engine per culture from handlers' `SupportedCultures`
+1. Runs `LanguageSetupService.CheckAndPromptInstall()` — checks for missing speech language packs and prompts installation
+2. Creates `MonitorControlService` — enumerates physical monitors, exposes DDC/CI brightness get/set via P/Invoke to `dxva2.dll`
+3. Builds a list of `ICommandHandler` implementations (currently just `BrightnessCommandHandler`)
+4. Creates `VoiceListenerService` — creates one engine per culture from handlers' `SupportedCultures`
+
+### Language dependency check
+
+`LanguageSetupService` (in `Services/`) checks which speech recognition cultures are installed via `SpeechRecognitionEngine.InstalledRecognizers()`. If any required culture (en-US, pt-BR) is missing, it shows a prompt and runs `Add-WindowsCapability` via elevated PowerShell to install the language pack.
 
 ### Adding a new voice command
 

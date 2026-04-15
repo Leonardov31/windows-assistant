@@ -9,6 +9,7 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 - **Auto speech speed detection** — adapts to slow, normal, or fast speaking pace
 - **DDC/CI** — works with any external monitor that supports the DDC/CI protocol
 - **Startup with Windows** — optional, toggle via tray menu
+- **Language dependency check** — detects missing speech language packs and offers to install them automatically
 - **Help / Tutorial** — built-in guide accessible from the tray menu
 
 ## Voice Commands
@@ -29,7 +30,7 @@ Scale: 1–10 maps to 10%–100%.
 - Windows 10/11
 - .NET 10 Runtime (or use the self-contained build)
 - External monitor with DDC/CI support
-- For Portuguese: install the pt-BR language pack with speech recognition in Windows Settings
+- For Portuguese: the app will detect and offer to install the pt-BR language pack automatically on startup
 
 ## Build
 

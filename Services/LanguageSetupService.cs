@@ -107,7 +107,7 @@ public static class LanguageSetupService
                 Arguments = $"-NoProfile -Command \"Add-WindowsCapability -Online -Name '{capabilityName}'\"",
                 Verb      = "runas",
                 UseShellExecute = true,
-                WindowStyle     = WindowStyle.Hidden,
+                WindowStyle     = ProcessWindowStyle.Hidden,
             };
 
             using var process = Process.Start(psi);
