@@ -57,58 +57,75 @@ public sealed class BrightnessCommandHandler : ICommandHandler
     public GrammarBuilder BuildGrammar(CultureInfo culture)
     {
         var monitors = CommandVocabulary.MonitorNumberChoices();
-        var ordinals = CommandVocabulary.OrdinalChoices(culture);
         var allWords = CommandVocabulary.AllChoices(culture);
         var values = CommandVocabulary.BrightnessValueChoices();
         var bKeyword = CommandVocabulary.BrightnessKeywordChoices(culture);
         var prep = CommandVocabulary.PrepositionChoices(culture);
+        var ordinalWords = CommandVocabulary.OrdinalWordList(culture);
 
-        // Short: ordinal + value
-        var shortOrdinal = new GrammarBuilder();
-        shortOrdinal.Append(ordinals);
-        shortOrdinal.Append(values);
+        var branches = new List<GrammarBuilder>();
+
+        // Short: one branch per ordinal + value (separate paths improve recognition)
+        foreach (var ordinal in ordinalWords)
+        {
+            var b = new GrammarBuilder();
+            b.Append(ordinal);
+            b.Append(values);
+            branches.Add(b);
+        }
 
         // Short: "monitor N" + value
         var shortMonitor = new GrammarBuilder();
         shortMonitor.Append("monitor");
         shortMonitor.Append(monitors);
         shortMonitor.Append(values);
+        branches.Add(shortMonitor);
 
         // All: "both/todos" + value
         var allBuilder = new GrammarBuilder();
         allBuilder.Append(allWords);
         allBuilder.Append(values);
+        branches.Add(allBuilder);
 
-        // Long 1: brightness + value + prep + monitor
+        // Long 1: brightness + value + prep + "monitor N"
         var long1Monitor = new GrammarBuilder();
         long1Monitor.Append(bKeyword);
         long1Monitor.Append(values);
         long1Monitor.Append(prep);
         long1Monitor.Append("monitor");
         long1Monitor.Append(monitors);
+        branches.Add(long1Monitor);
 
-        var long1Ordinal = new GrammarBuilder();
-        long1Ordinal.Append(bKeyword);
-        long1Ordinal.Append(values);
-        long1Ordinal.Append(prep);
-        long1Ordinal.Append(ordinals);
+        // Long 1: brightness + value + prep + ordinal
+        foreach (var ordinal in ordinalWords)
+        {
+            var b = new GrammarBuilder();
+            b.Append(bKeyword);
+            b.Append(values);
+            b.Append(prep);
+            b.Append(ordinal);
+            branches.Add(b);
+        }
 
-        // Long 2: monitor + brightness + value
+        // Long 2: "monitor N" + brightness + value
         var long2Monitor = new GrammarBuilder();
         long2Monitor.Append("monitor");
         long2Monitor.Append(monitors);
         long2Monitor.Append(bKeyword);
         long2Monitor.Append(values);
+        branches.Add(long2Monitor);
 
-        var long2Ordinal = new GrammarBuilder();
-        long2Ordinal.Append(ordinals);
-        long2Ordinal.Append(bKeyword);
-        long2Ordinal.Append(values);
+        // Long 2: ordinal + brightness + value
+        foreach (var ordinal in ordinalWords)
+        {
+            var b = new GrammarBuilder();
+            b.Append(ordinal);
+            b.Append(bKeyword);
+            b.Append(values);
+            branches.Add(b);
+        }
 
-        return new Choices(
-            shortOrdinal, shortMonitor, allBuilder,
-            long1Monitor, long1Ordinal,
-            long2Monitor, long2Ordinal);
+        return new Choices(branches.ToArray());
     }
 
     public CommandResult? TryHandle(RecognitionResult result)

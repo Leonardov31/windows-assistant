@@ -23,11 +23,9 @@ public class CommandVocabularyTests
     [InlineData("first", 0)]
     [InlineData("second", 1)]
     [InlineData("third", 2)]
-    [InlineData("fourth", 3)]
     [InlineData("primeiro", 0)]
     [InlineData("segundo", 1)]
     [InlineData("terceiro", 2)]
-    [InlineData("quarto", 3)]
     public void ResolveMonitorIndex_ValidTarget_ReturnsIndex(string target, int expected)
     {
         Assert.Equal(expected, CommandVocabulary.ResolveMonitorIndex(target));
@@ -43,6 +41,8 @@ public class CommandVocabularyTests
     }
 
     [Theory]
+    [InlineData("fourth")]
+    [InlineData("quarto")]
     [InlineData("fifth")]
     [InlineData("monitor 5")]
     [InlineData("unknown")]

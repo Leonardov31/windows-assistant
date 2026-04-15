@@ -19,9 +19,9 @@ public static class CommandVocabulary
         // Numeric (both languages)
         ["monitor 1"] = 0, ["monitor 2"] = 1, ["monitor 3"] = 2, ["monitor 4"] = 3,
         // en-US ordinals
-        ["first"] = 0, ["second"] = 1, ["third"] = 2, ["fourth"] = 3,
+        ["first"] = 0, ["second"] = 1, ["third"] = 2,
         // pt-BR ordinals
-        ["primeiro"] = 0, ["segundo"] = 1, ["terceiro"] = 2, ["quarto"] = 3,
+        ["primeiro"] = 0, ["segundo"] = 1, ["terceiro"] = 2,
     };
 
     // "All monitors" words — brightness only
@@ -113,15 +113,19 @@ public static class CommandVocabulary
     // Grammar helpers — build Choices for speech recognition per culture
     // -------------------------------------------------------------------------
 
-    /// <summary>Choices for ordinal words in a given culture.</summary>
-    public static Choices OrdinalChoices(CultureInfo culture)
+    /// <summary>Ordinal word list for a given culture (for building separate grammar paths).</summary>
+    public static string[] OrdinalWordList(CultureInfo culture)
     {
         return culture.Name switch
         {
-            "pt-BR" => new Choices("primeiro", "segundo", "terceiro", "quarto"),
-            _       => new Choices("first", "second", "third", "fourth"),
+            "pt-BR" => ["primeiro", "segundo", "terceiro"],
+            _       => ["first", "second", "third"],
         };
     }
+
+    /// <summary>Choices for ordinal words in a given culture.</summary>
+    public static Choices OrdinalChoices(CultureInfo culture) =>
+        new(OrdinalWordList(culture));
 
     /// <summary>Choices for "all monitors" words in a given culture.</summary>
     public static Choices AllChoices(CultureInfo culture)

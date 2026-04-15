@@ -43,34 +43,44 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
     public GrammarBuilder BuildGrammar(CultureInfo culture)
     {
         var monitors = CommandVocabulary.MonitorNumberChoices();
-        var ordinals = CommandVocabulary.OrdinalChoices(culture);
-        var powerOn = CommandVocabulary.PowerOnChoices(culture);
-        var powerOff = CommandVocabulary.PowerOffChoices(culture);
         var power = CommandVocabulary.PowerChoices(culture);
+        var ordinalWords = CommandVocabulary.OrdinalWordList(culture);
+
+        var branches = new List<GrammarBuilder>();
 
         // Form 1: power + "monitor N"
         var pf1Monitor = new GrammarBuilder();
         pf1Monitor.Append(power);
         pf1Monitor.Append("monitor");
         pf1Monitor.Append(monitors);
+        branches.Add(pf1Monitor);
 
-        // Form 1: power + ordinal
-        var pf1Ordinal = new GrammarBuilder();
-        pf1Ordinal.Append(power);
-        pf1Ordinal.Append(ordinals);
+        // Form 1: power + ordinal (one branch per ordinal)
+        foreach (var ordinal in ordinalWords)
+        {
+            var b = new GrammarBuilder();
+            b.Append(power);
+            b.Append(ordinal);
+            branches.Add(b);
+        }
 
         // Form 2: "monitor N" + power
         var tf1Monitor = new GrammarBuilder();
         tf1Monitor.Append("monitor");
         tf1Monitor.Append(monitors);
         tf1Monitor.Append(power);
+        branches.Add(tf1Monitor);
 
-        // Form 2: ordinal + power
-        var tf1Ordinal = new GrammarBuilder();
-        tf1Ordinal.Append(ordinals);
-        tf1Ordinal.Append(power);
+        // Form 2: ordinal + power (one branch per ordinal)
+        foreach (var ordinal in ordinalWords)
+        {
+            var b = new GrammarBuilder();
+            b.Append(ordinal);
+            b.Append(power);
+            branches.Add(b);
+        }
 
-        return new Choices(pf1Monitor, pf1Ordinal, tf1Monitor, tf1Ordinal);
+        return new Choices(branches.ToArray());
     }
 
     public CommandResult? TryHandle(RecognitionResult result)

@@ -19,19 +19,27 @@ public static class LanguageSetupService
     /// <summary>Returns culture names that have a speech recognizer installed.</summary>
     public static List<string> GetInstalledCultures()
     {
-        var installed = SpeechRecognitionEngine.InstalledRecognizers()
-            .Select(r => r.Culture.Name)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var installed = SpeechRecognitionEngine.InstalledRecognizers()
+                .Select(r => r.Culture.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        return RequiredCultures.Keys
-            .Where(c => installed.Contains(c))
-            .ToList();
+            return RequiredCultures.Keys
+                .Where(c => installed.Contains(c))
+                .ToList();
+        }
+        catch (Exception)
+        {
+            // InstalledRecognizers can throw on some systems
+            return [];
+        }
     }
 
     /// <summary>Returns culture names that are required but not installed.</summary>
     public static List<string> GetMissingCultures()
     {
-        var installed = GetInstalledCultures().ToHashSet();
+        var installed = GetInstalledCultures().ToHashSet(StringComparer.OrdinalIgnoreCase);
         return RequiredCultures.Keys
             .Where(c => !installed.Contains(c))
             .ToList();
@@ -51,8 +59,10 @@ public static class LanguageSetupService
         var result = MessageBox.Show(
             $"The following speech recognition languages are not installed:\n\n" +
             $"  {names}\n\n" +
-            "Without them, voice commands in those languages won't work.\n\n" +
-            "Install now? (requires administrator privileges)",
+            "Without them, voice commands in those languages won't work.\n" +
+            "You can also install them manually in Windows Settings.\n\n" +
+            "Install now? (requires administrator privileges)\n" +
+            "Click No to skip and continue without them.",
             "Windows Assistant — Language Setup",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);

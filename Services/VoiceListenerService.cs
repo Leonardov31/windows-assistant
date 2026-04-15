@@ -197,12 +197,44 @@ public sealed class VoiceListenerService : IDisposable
             var result = handler.TryHandle(e.Result);
             if (result is null) continue;
 
+            var command = StripWakePhrase(e.Result.Text);
+            var outcome = result.Success ? result.Message : $"FAILED: {result.Message}";
+            Log($"[{DateTime.Now:HH:mm:ss}] \"{command}\" ({e.Result.Confidence:P0}) → [{handler.Name}] {outcome}");
+
             CommandExecuted?.Invoke(this, new CommandEventArgs(
                 HandlerName:    handler.Name,
                 RecognizedText: e.Result.Text,
                 Confidence:     e.Result.Confidence,
                 Result:         result));
             return;
+        }
+    }
+
+    private static string StripWakePhrase(string text)
+    {
+        foreach (var wake in WakePhrases.Values)
+        {
+            if (text.StartsWith(wake, StringComparison.OrdinalIgnoreCase))
+                return text[wake.Length..].TrimStart();
+        }
+        return text;
+    }
+
+    private static void Log(string message)
+    {
+        Console.WriteLine(message);
+
+        try
+        {
+            var logDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "WindowsAssistant");
+            Directory.CreateDirectory(logDir);
+            File.AppendAllText(Path.Combine(logDir, "voice.log"), message + Environment.NewLine);
+        }
+        catch
+        {
+            // Don't let logging failures break recognition
         }
     }
 

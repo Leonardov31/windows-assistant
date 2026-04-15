@@ -35,7 +35,7 @@ public class BrightnessCommandTests
     [InlineData("hey windows monitor 1 0", "monitor 1", 0)]
     [InlineData("hey windows third 3", "third", 3)]
     [InlineData("ei windows terceiro 10", "terceiro", 10)]
-    [InlineData("ei windows quarto 70", "quarto", 70)]
+    [InlineData("ei windows terceiro 70", "terceiro", 70)]
     public void ShortForm_MatchesPattern(string text, string expectedTarget, int expectedValue)
     {
         var match = ShortPattern.Match(text);

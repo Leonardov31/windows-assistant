@@ -50,7 +50,7 @@ public class MonitorPowerCommandTests
     [InlineData("ei windows primeiro desligar", "primeiro", "desligar")]
     [InlineData("ei windows segundo ligar", "segundo", "ligar")]
     [InlineData("ei windows terceiro desativar", "terceiro", "desativar")]
-    [InlineData("ei windows quarto ativar", "quarto", "ativar")]
+    [InlineData("ei windows terceiro ativar", "terceiro", "ativar")]
     public void TargetFirst_MatchesCorrectly(string text, string expectedTarget, string expectedPower)
     {
         var match = TargetFirst.Match(text);
