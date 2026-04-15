@@ -17,11 +17,11 @@ public static class CommandVocabulary
     public static readonly Dictionary<string, int> MonitorTargets = new(StringComparer.OrdinalIgnoreCase)
     {
         // Numeric (both languages)
-        ["monitor 1"] = 0, ["monitor 2"] = 1, ["monitor 3"] = 2, ["monitor 4"] = 3,
+        ["monitor 1"] = 0, ["monitor 2"] = 1, ["monitor 3"] = 2, ["monitor 4"] = 3, ["monitor 5"] = 4,
         // en-US ordinals
-        ["first"] = 0, ["second"] = 1, ["third"] = 2,
+        ["first"] = 0, ["second"] = 1, ["third"] = 2, ["fourth"] = 3, ["fifth"] = 4,
         // pt-BR ordinals
-        ["primeiro"] = 0, ["segundo"] = 1, ["terceiro"] = 2,
+        ["primeiro"] = 0, ["segundo"] = 1, ["terceiro"] = 2, ["quarto"] = 3, ["quinto"] = 4,
     };
 
     // "All monitors" words — brightness only
@@ -36,12 +36,18 @@ public static class CommandVocabulary
 
     public static readonly HashSet<string> PowerOnWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "on", "enable", "turn on", "ligar", "ativar",
+        // en-US
+        "on", "enable", "turn on",
+        // pt-BR (infinitive + common indicative/imperative variants)
+        "ligar", "liga", "ligue", "ativar", "acender", "acende", "acenda",
     };
 
     public static readonly HashSet<string> PowerOffWords = new(StringComparer.OrdinalIgnoreCase)
     {
-        "off", "disable", "turn off", "desligar", "desativar",
+        // en-US
+        "off", "disable", "turn off",
+        // pt-BR
+        "desligar", "desliga", "desligue", "desativar", "apagar", "apaga", "apague",
     };
 
     public static bool IsPowerOn(string word) => PowerOnWords.Contains(word);
@@ -54,13 +60,13 @@ public static class CommandVocabulary
     public static readonly Dictionary<string, string[]> BrightnessWords = new()
     {
         ["en-US"] = ["brightness"],
-        ["pt-BR"] = ["brilho"],
+        ["pt-BR"] = ["brilho", "luminosidade", "luz"],
     };
 
     public static readonly Dictionary<string, string[]> Prepositions = new()
     {
         ["en-US"] = ["on", "in"],
-        ["pt-BR"] = ["no", "do", "em"],
+        ["pt-BR"] = ["no", "na", "do", "da", "em"],
     };
 
     // -------------------------------------------------------------------------
@@ -118,8 +124,8 @@ public static class CommandVocabulary
     {
         return culture.Name switch
         {
-            "pt-BR" => ["primeiro", "segundo", "terceiro"],
-            _       => ["first", "second", "third"],
+            "pt-BR" => ["primeiro", "segundo", "terceiro", "quarto", "quinto"],
+            _       => ["first", "second", "third", "fourth", "fifth"],
         };
     }
 
@@ -142,7 +148,7 @@ public static class CommandVocabulary
     {
         return culture.Name switch
         {
-            "pt-BR" => new Choices("ligar", "ativar"),
+            "pt-BR" => new Choices("ligar", "liga", "ligue", "ativar", "acender", "acende", "acenda"),
             _       => new Choices("on", "enable", "turn on"),
         };
     }
@@ -151,7 +157,7 @@ public static class CommandVocabulary
     {
         return culture.Name switch
         {
-            "pt-BR" => new Choices("desligar", "desativar"),
+            "pt-BR" => new Choices("desligar", "desliga", "desligue", "desativar", "apagar", "apaga", "apague"),
             _       => new Choices("off", "disable", "turn off"),
         };
     }
@@ -177,8 +183,8 @@ public static class CommandVocabulary
         return new Choices(words);
     }
 
-    /// <summary>Choices for monitor number (1–4).</summary>
-    public static Choices MonitorNumberChoices() => new("1", "2", "3", "4");
+    /// <summary>Choices for monitor number (1–5).</summary>
+    public static Choices MonitorNumberChoices() => new("1", "2", "3", "4", "5");
 
     /// <summary>Choices for brightness values (speech recognition grammar).</summary>
     public static Choices BrightnessValueChoices() => new(

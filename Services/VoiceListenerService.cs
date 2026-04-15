@@ -15,10 +15,10 @@ public sealed class VoiceListenerService : IDisposable
 {
     private const int SampleWindow = 8;
 
-    private static readonly Dictionary<string, string> WakePhrases = new()
+    private static readonly Dictionary<string, string[]> WakePhrases = new()
     {
-        ["en-US"] = "hey windows",
-        ["pt-BR"] = "ei windows",
+        ["en-US"] = ["hey windows"],
+        ["pt-BR"] = ["ei windows", "oi windows", "olá windows", "ola windows"],
     };
 
     private readonly List<SpeechRecognitionEngine> _engines = new();
@@ -103,7 +103,7 @@ public sealed class VoiceListenerService : IDisposable
 
     private void LoadGrammar(SpeechRecognitionEngine engine, CultureInfo culture)
     {
-        string wake = WakePhrases.GetValueOrDefault(culture.Name, "hey windows");
+        string[] wakes = WakePhrases.GetValueOrDefault(culture.Name, ["hey windows"]);
 
         var commandChoices = new Choices();
         foreach (var handler in _handlers)
@@ -112,7 +112,8 @@ public sealed class VoiceListenerService : IDisposable
                 commandChoices.Add(handler.BuildGrammar(culture));
         }
 
-        var root = new GrammarBuilder(wake);
+        var root = new GrammarBuilder();
+        root.Append(new Choices(wakes));
         root.Append(commandChoices);
 
         engine.LoadGrammar(new Grammar(root) { Name = $"WakeAndCommand_{culture.Name}" });
@@ -212,7 +213,7 @@ public sealed class VoiceListenerService : IDisposable
 
     private static string StripWakePhrase(string text)
     {
-        foreach (var wake in WakePhrases.Values)
+        foreach (var wake in WakePhrases.Values.SelectMany(v => v))
         {
             if (text.StartsWith(wake, StringComparison.OrdinalIgnoreCase))
                 return text[wake.Length..].TrimStart();

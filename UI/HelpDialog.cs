@@ -16,7 +16,7 @@ internal sealed class HelpDialog : Form
 
         WAKE PHRASES
           English:    "Hey Windows"
-          Português:  "Ei Windows"
+          Português:  "Ei Windows" / "Oi Windows" / "Olá Windows"
 
 
         BRIGHTNESS CONTROL
@@ -34,16 +34,22 @@ internal sealed class HelpDialog : Form
         Long form 1:
           "Hey Windows, brightness 5 on monitor 1"
           "Ei Windows, brilho 3 no monitor 1"
+          "Ei Windows, luminosidade 5 no segundo"
+          "Ei Windows, luz 7 no terceiro"
           "Hey Windows, brightness 5 on first"
 
         Long form 2:
           "Hey Windows, monitor 1 brightness 5"
           "Ei Windows, primeiro brilho 3"
+          "Ei Windows, quarto luminosidade 8"
 
-        Monitors: monitor 1–4, or ordinals:
+        Monitors: monitor 1–5, or ordinals:
           first/primeiro, second/segundo,
-          third/terceiro, fourth/quarto.
+          third/terceiro, fourth/quarto,
+          fifth/quinto.
         All: both/all, ambos/todos.
+        Brightness keyword (pt-BR):
+          brilho / luminosidade / luz.
 
 
         MONITOR POWER (ON / OFF)
@@ -55,13 +61,20 @@ internal sealed class HelpDialog : Form
           "Hey Windows, enable first"
           "Hey Windows, first off"
           "Ei Windows, desligar monitor 1"
+          "Ei Windows, apaga o primeiro" (see note*)
+          "Ei Windows, acende segundo"
+          "Ei Windows, ligue terceiro"
           "Ei Windows, primeiro desativar"
-          "Ei Windows, ligar segundo"
+
+        *Grammar does not include articles; say
+        "apaga primeiro" (not "apaga o primeiro").
 
         Power on:  on, enable, turn on,
-                   ligar, ativar
+                   ligar, liga, ligue, ativar,
+                   acender, acende, acenda
         Power off: off, disable, turn off,
-                   desligar, desativar
+                   desligar, desliga, desligue,
+                   desativar, apagar, apaga, apague
 
         Note: to wake a monitor by voice, your
         microphone must not be on the sleeping monitor.

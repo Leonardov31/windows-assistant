@@ -26,8 +26,11 @@ Lightweight system tray app for Windows that controls your monitors by voice usi
 | "Ei Windows, ambos 5"                    | All → 50%       |
 | "Hey Windows, brightness 5 on monitor 1" | Monitor 1 → 50% |
 | "Ei Windows, brilho 3 no monitor 1"      | Monitor 1 → 30% |
+| "Oi Windows, luminosidade 5 no segundo"  | Monitor 2 → 50% |
+| "Olá Windows, luz 7 no terceiro"         | Monitor 3 → 70% |
 | "Hey Windows, monitor 1 brightness 5"    | Monitor 1 → 50% |
 | "Ei Windows, primeiro brilho 3"          | Monitor 1 → 30% |
+| "Ei Windows, quarto luminosidade 8"      | Monitor 4 → 80% |
 
 Values 0–10 are levels (×10). Values 11–100 are direct percentages.
 
@@ -39,10 +42,14 @@ Values 0–10 are levels (×10). Values 11–100 are direct percentages.
 | "Hey Windows, first off"          | Monitor 1 → standby |
 | "Hey Windows, enable second"      | Monitor 2 → on      |
 | "Ei Windows, desligar monitor 1"  | Monitor 1 → standby |
+| "Ei Windows, apaga primeiro"      | Monitor 1 → standby |
+| "Ei Windows, acende segundo"      | Monitor 2 → on      |
+| "Ei Windows, ligue terceiro"      | Monitor 3 → on      |
 | "Ei Windows, primeiro desativar"  | Monitor 1 → standby |
-| "Ei Windows, ligar segundo"       | Monitor 2 → on      |
 
-Monitors: monitor 1–4, or ordinals (first/primeiro, second/segundo, third/terceiro, fourth/quarto).
+Monitors: monitor 1–5, or ordinals (first/primeiro, second/segundo, third/terceiro, fourth/quarto, fifth/quinto).
+
+Wake phrases (pt-BR): "Ei Windows", "Oi Windows", "Olá Windows".
 
 ## Requirements
 
