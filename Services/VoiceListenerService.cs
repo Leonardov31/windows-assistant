@@ -193,19 +193,21 @@ public sealed class VoiceListenerService : IDisposable
         if (e.Result.Confidence < _minConfidence)
             return;
 
+        var output = new RecognitionOutput(e.Result.Text, e.Result.Confidence);
+
         foreach (var handler in _handlers)
         {
-            var result = handler.TryHandle(e.Result);
+            var result = handler.TryHandle(output);
             if (result is null) continue;
 
-            var command = StripWakePhrase(e.Result.Text);
+            var command = StripWakePhrase(output.Text);
             var outcome = result.Success ? result.Message : $"FAILED: {result.Message}";
-            Log($"[{DateTime.Now:HH:mm:ss}] \"{command}\" ({e.Result.Confidence:P0}) → [{handler.Name}] {outcome}");
+            Log($"[{DateTime.Now:HH:mm:ss}] \"{command}\" ({output.Confidence:P0}) → [{handler.Name}] {outcome}");
 
             CommandExecuted?.Invoke(this, new CommandEventArgs(
                 HandlerName:    handler.Name,
-                RecognizedText: e.Result.Text,
-                Confidence:     e.Result.Confidence,
+                RecognizedText: output.Text,
+                Confidence:     output.Confidence,
                 Result:         result));
             return;
         }

@@ -128,10 +128,10 @@ public sealed class BrightnessCommandHandler : ICommandHandler
         return new Choices(branches.ToArray());
     }
 
-    public CommandResult? TryHandle(RecognitionResult result)
+    public CommandResult? TryHandle(RecognitionOutput output)
     {
         // Long 1: "brightness 5 on monitor 1"
-        var match = Long1Pattern.Match(result.Text);
+        var match = Long1Pattern.Match(output.Text);
         if (match.Success)
         {
             uint brightness = CommandVocabulary.ParseBrightness(int.Parse(match.Groups[1].Value));
@@ -141,7 +141,7 @@ public sealed class BrightnessCommandHandler : ICommandHandler
         }
 
         // Long 2: "monitor 1 brightness 5"
-        match = Long2Pattern.Match(result.Text);
+        match = Long2Pattern.Match(output.Text);
         if (match.Success)
         {
             int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[1].Value);
@@ -151,7 +151,7 @@ public sealed class BrightnessCommandHandler : ICommandHandler
         }
 
         // All: "both 5", "todos 50"
-        match = AllPattern.Match(result.Text);
+        match = AllPattern.Match(output.Text);
         if (match.Success)
         {
             uint brightness = CommandVocabulary.ParseBrightness(int.Parse(match.Groups[2].Value));
@@ -159,7 +159,7 @@ public sealed class BrightnessCommandHandler : ICommandHandler
         }
 
         // Short: "first 5", "monitor 1 50"
-        match = ShortPattern.Match(result.Text);
+        match = ShortPattern.Match(output.Text);
         if (match.Success)
         {
             int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[1].Value);

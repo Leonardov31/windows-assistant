@@ -83,10 +83,10 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
         return new Choices(branches.ToArray());
     }
 
-    public CommandResult? TryHandle(RecognitionResult result)
+    public CommandResult? TryHandle(RecognitionOutput output)
     {
         // Form 1: "turn off monitor 1", "desligar primeiro"
-        var match = PowerFirstPattern.Match(result.Text);
+        var match = PowerFirstPattern.Match(output.Text);
         if (match.Success)
         {
             string powerWord = match.Groups[1].Value;
@@ -96,7 +96,7 @@ public sealed class MonitorPowerCommandHandler : ICommandHandler
         }
 
         // Form 2: "first off", "primeiro desligar"
-        match = TargetFirstPattern.Match(result.Text);
+        match = TargetFirstPattern.Match(output.Text);
         if (match.Success)
         {
             int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[1].Value);

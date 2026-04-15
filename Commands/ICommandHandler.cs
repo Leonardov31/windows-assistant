@@ -26,9 +26,9 @@ public interface ICommandHandler
     GrammarBuilder BuildGrammar(CultureInfo culture);
 
     /// <summary>
-    /// Tries to handle a recognition result (language-agnostic text parsing).
-    /// Returns a <see cref="CommandResult"/> if the result belongs to this handler,
-    /// or <c>null</c> if the result should be passed to the next handler.
+    /// Tries to handle a recognized utterance (language-agnostic text parsing).
+    /// Returns a <see cref="CommandResult"/> if the utterance belongs to this handler,
+    /// or <c>null</c> if it should be passed to the next handler.
     /// </summary>
-    CommandResult? TryHandle(RecognitionResult result);
+    CommandResult? TryHandle(RecognitionOutput output);
 }
