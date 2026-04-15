@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Speech.Recognition;
 
 namespace WindowsAssistant.Commands;
 
@@ -6,9 +7,9 @@ namespace WindowsAssistant.Commands;
 /// Contract for a voice command module.
 /// Implement this interface to add new voice-activated features.
 ///
-/// Each handler declares which cultures it supports and the list of words
-/// it can recognise per culture. The voice listener merges all handler
-/// vocabularies into a single Vosk grammar per culture.
+/// Each handler declares which cultures it supports and provides a
+/// grammar fragment per culture. The voice listener creates one
+/// recognition engine per culture and merges the grammars automatically.
 /// </summary>
 public interface ICommandHandler
 {
@@ -19,16 +20,15 @@ public interface ICommandHandler
     IReadOnlyList<CultureInfo> SupportedCultures { get; }
 
     /// <summary>
-    /// Returns the flat list of words this handler can recognise in the given
-    /// culture (without the wake phrase). Called once per culture at startup.
-    /// Duplicates across handlers are fine — the listener deduplicates.
+    /// Returns the grammar fragment for the given culture (without the wake phrase).
+    /// Called once per culture at startup.
     /// </summary>
-    IReadOnlyList<string> BuildVocabulary(CultureInfo culture);
+    GrammarBuilder BuildGrammar(CultureInfo culture);
 
     /// <summary>
-    /// Tries to handle a recognized utterance (language-agnostic text parsing).
-    /// Returns a <see cref="CommandResult"/> if the utterance belongs to this handler,
-    /// or <c>null</c> if it should be passed to the next handler.
+    /// Tries to handle a recognition result (language-agnostic text parsing).
+    /// Returns a <see cref="CommandResult"/> if the result belongs to this handler,
+    /// or <c>null</c> if the result should be passed to the next handler.
     /// </summary>
-    CommandResult? TryHandle(RecognitionOutput output);
+    CommandResult? TryHandle(RecognitionResult result);
 }

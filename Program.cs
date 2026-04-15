@@ -3,10 +3,6 @@ using WindowsAssistant.UI;
 Application.EnableVisualStyles();
 Application.SetCompatibleTextRenderingDefault(false);
 
-// Opt into the Windows 11 dark/light theme for all WinForms controls.
-// Requires .NET 9+ WinForms runtime.
-Application.SetColorMode(SystemColorMode.System);
-
 try
 {
     using var app = new TrayApplication();

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Speech.Recognition;
 using System.Text.RegularExpressions;
 using WindowsAssistant.Services;
 
@@ -53,27 +54,84 @@ public sealed class BrightnessCommandHandler : ICommandHandler
 
     public IReadOnlyList<CultureInfo> SupportedCultures { get; } = [EnUs, PtBr];
 
-    public IReadOnlyList<string> BuildVocabulary(CultureInfo culture)
+    public GrammarBuilder BuildGrammar(CultureInfo culture)
     {
-        var words = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "monitor" };
+        var monitors = CommandVocabulary.MonitorNumberChoices();
+        var allWords = CommandVocabulary.AllChoices(culture);
+        var values = CommandVocabulary.BrightnessValueChoices();
+        var bKeyword = CommandVocabulary.BrightnessKeywordChoices(culture);
+        var prep = CommandVocabulary.PrepositionChoices(culture);
+        var ordinalWords = CommandVocabulary.OrdinalWordList(culture);
 
-        foreach (var o in CommandVocabulary.OrdinalWordList(culture)) words.Add(o);
-        foreach (var n in CommandVocabulary.NumericWords(culture))    words.Add(n);
+        var branches = new List<GrammarBuilder>();
 
-        var cultureWords = culture.Name switch
+        // Short: one branch per ordinal + value (separate paths improve recognition)
+        foreach (var ordinal in ordinalWords)
         {
-            "pt-BR" => new[] { "ambos", "todos", "brilho", "luminosidade", "luz", "no", "na", "do", "da", "em" },
-            _       => new[] { "both", "all", "brightness", "on", "in" },
-        };
-        foreach (var w in cultureWords) words.Add(w);
+            var b = new GrammarBuilder();
+            b.Append(ordinal);
+            b.Append(values);
+            branches.Add(b);
+        }
 
-        return words.ToArray();
+        // Short: "monitor N" + value
+        var shortMonitor = new GrammarBuilder();
+        shortMonitor.Append("monitor");
+        shortMonitor.Append(monitors);
+        shortMonitor.Append(values);
+        branches.Add(shortMonitor);
+
+        // All: "both/todos" + value
+        var allBuilder = new GrammarBuilder();
+        allBuilder.Append(allWords);
+        allBuilder.Append(values);
+        branches.Add(allBuilder);
+
+        // Long 1: brightness + value + prep + "monitor N"
+        var long1Monitor = new GrammarBuilder();
+        long1Monitor.Append(bKeyword);
+        long1Monitor.Append(values);
+        long1Monitor.Append(prep);
+        long1Monitor.Append("monitor");
+        long1Monitor.Append(monitors);
+        branches.Add(long1Monitor);
+
+        // Long 1: brightness + value + prep + ordinal
+        foreach (var ordinal in ordinalWords)
+        {
+            var b = new GrammarBuilder();
+            b.Append(bKeyword);
+            b.Append(values);
+            b.Append(prep);
+            b.Append(ordinal);
+            branches.Add(b);
+        }
+
+        // Long 2: "monitor N" + brightness + value
+        var long2Monitor = new GrammarBuilder();
+        long2Monitor.Append("monitor");
+        long2Monitor.Append(monitors);
+        long2Monitor.Append(bKeyword);
+        long2Monitor.Append(values);
+        branches.Add(long2Monitor);
+
+        // Long 2: ordinal + brightness + value
+        foreach (var ordinal in ordinalWords)
+        {
+            var b = new GrammarBuilder();
+            b.Append(ordinal);
+            b.Append(bKeyword);
+            b.Append(values);
+            branches.Add(b);
+        }
+
+        return new Choices(branches.ToArray());
     }
 
-    public CommandResult? TryHandle(RecognitionOutput output)
+    public CommandResult? TryHandle(RecognitionResult result)
     {
         // Long 1: "brightness 5 on monitor 1"
-        var match = Long1Pattern.Match(output.Text);
+        var match = Long1Pattern.Match(result.Text);
         if (match.Success)
         {
             uint brightness = CommandVocabulary.ParseBrightness(int.Parse(match.Groups[1].Value));
@@ -83,7 +141,7 @@ public sealed class BrightnessCommandHandler : ICommandHandler
         }
 
         // Long 2: "monitor 1 brightness 5"
-        match = Long2Pattern.Match(output.Text);
+        match = Long2Pattern.Match(result.Text);
         if (match.Success)
         {
             int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[1].Value);
@@ -93,7 +151,7 @@ public sealed class BrightnessCommandHandler : ICommandHandler
         }
 
         // All: "both 5", "todos 50"
-        match = AllPattern.Match(output.Text);
+        match = AllPattern.Match(result.Text);
         if (match.Success)
         {
             uint brightness = CommandVocabulary.ParseBrightness(int.Parse(match.Groups[2].Value));
@@ -101,7 +159,7 @@ public sealed class BrightnessCommandHandler : ICommandHandler
         }
 
         // Short: "first 5", "monitor 1 50"
-        match = ShortPattern.Match(output.Text);
+        match = ShortPattern.Match(result.Text);
         if (match.Success)
         {
             int index = CommandVocabulary.ResolveMonitorIndex(match.Groups[1].Value);
